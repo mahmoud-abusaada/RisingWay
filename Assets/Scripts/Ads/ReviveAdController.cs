@@ -90,7 +90,12 @@ public class ReviveAdController : MonoBehaviour
                                         reward.Amount,
                                         reward.Type));
                 GetReviveMenu().RevivePlayer();
-                doOnFail = null;
+                // P2-02: must clear the FIELD, not the parameter. The parameter of the same
+                // name shadows it, so "doOnFail = null" only nulled the captured local while
+                // this.doOnFail stayed set. OnAdFullScreenContentClosed then invoked the field,
+                // scheduling CancelRevive() and ending the run the player had just paid for
+                // with a completed rewarded ad.
+                this.doOnFail = null;
             });
         }
         else
