@@ -29,9 +29,13 @@ public class MaterialsManager : MonoBehaviour
             Destroy(gameObject);
         }
 
+        // The bulk price helpers below are editor-only now and no longer touch IDs. See P2-05.
         // updateBallsPrices();
         // updateFloorsPrices();
         // updatePatternFloorsPrices();
+
+        // Compiled out entirely in release builds - the call site disappears with the method.
+        ValidateCosmeticIds();
     }
 
     // P2-04: cosmetic ownership and selection now go through PlayerStats, which owns all
@@ -198,11 +202,29 @@ public class MaterialsManager : MonoBehaviour
         return m;
     }
 
+    // ==================================================================================
+    // BULK PRICE HELPERS - P2-05
+    //
+    // These three used to also reassign IDs by list position (id = i + 1, id = i + 101).
+    // Those assignments have been REMOVED and must never come back.
+    //
+    // Cosmetic IDs are the primary key for what a player owns. Reassigning them by index
+    // means that inserting, removing or reordering a single entry in the inspector silently
+    // hands every player a different set of planets, with no error and no way to detect it
+    // after the fact. See docs/cosmetic-id-contract.md for the frozen ID map.
+    //
+    // The price logic is kept because the P6-01 economy rebalance will want it - but note it
+    // assigns prices by INDEX, so it is only correct while list order matches the frozen
+    // contract. Prefer editing prices in the inspector, or rewrite these to key off id.
+    //
+    // Editor-only, and still uncalled. They were already dead code (the calls in Awake are
+    // commented out); this just makes them harmless dead code.
+    // ==================================================================================
+#if UNITY_EDITOR
     private void updateBallsPrices()
     {
         for (int i = 0; i < ballMaterials.Count; i++)
         {
-            ballMaterials[i].id = i + 1;
             if (i <= 13)
                 ballMaterials[i].price = 1000;
             else if (i <= 37)
@@ -218,7 +240,6 @@ public class MaterialsManager : MonoBehaviour
     {
         for (int i = 0; i < floorMaterials.Count; i++)
         {
-            floorMaterials[i].id = i + 1;
             floorMaterials[i].price = 2000;
         }
     }
@@ -227,8 +248,75 @@ public class MaterialsManager : MonoBehaviour
     {
         for (int i = 0; i < patternFloorMaterials.Count; i++)
         {
-            patternFloorMaterials[i].id = i + 101;
             patternFloorMaterials[i].price = 5000;
         }
+    }
+#endif
+
+    // ==================================================================================
+    // COSMETIC ID CONTRACT VALIDATION - P2-05
+    //
+    // Cosmetic IDs are the primary key for ownership in the save file. Once a build ships
+    // they are a permanent contract: changing one silently reassigns what players own.
+    //
+    // This catches the failure modes that are detectable at runtime - duplicates, non-positive
+    // IDs, and entries disappearing below the shipped baseline. It cannot catch an ID being
+    // swapped between two items, which is why the frozen map lives in
+    // docs/cosmetic-id-contract.md and should be diffed whenever these lists are edited.
+    //
+    // Development builds only. In release this would be pure cost for a condition that should
+    // have been caught long before shipping.
+    // ==================================================================================
+
+    /// <summary>Counts as shipped in v1.0.19. Adding items above these is fine; losing them is not.</summary>
+    private const int BASELINE_BALL_COUNT = 72;
+    private const int BASELINE_COLOUR_FLOOR_COUNT = 12;
+    private const int BASELINE_PATTERN_FLOOR_COUNT = 40;
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private void ValidateCosmeticIds()
+    {
+        ValidateIdList("ballMaterials", ballMaterials.ConvertAll<BaseMaterial>(m => m), BASELINE_BALL_COUNT);
+
+        if (floorMaterials.Count < BASELINE_COLOUR_FLOOR_COUNT)
+            Debug.LogError("MaterialsManager: floorMaterials has " + floorMaterials.Count +
+                           " entries, below the shipped baseline of " + BASELINE_COLOUR_FLOOR_COUNT +
+                           ". Removing floors reassigns player ownership - see docs/cosmetic-id-contract.md");
+
+        if (patternFloorMaterials.Count < BASELINE_PATTERN_FLOOR_COUNT)
+            Debug.LogError("MaterialsManager: patternFloorMaterials has " + patternFloorMaterials.Count +
+                           " entries, below the shipped baseline of " + BASELINE_PATTERN_FLOOR_COUNT +
+                           ". Removing floors reassigns player ownership - see docs/cosmetic-id-contract.md");
+
+        // Colour and pattern floors share one ownership list, so their IDs must not collide.
+        List<BaseMaterial> allFloors = getCombinedFloorsList();
+        ValidateIdList("combined floors", allFloors, BASELINE_COLOUR_FLOOR_COUNT + BASELINE_PATTERN_FLOOR_COUNT);
+    }
+
+    private void ValidateIdList(string listName, List<BaseMaterial> items, int baselineCount)
+    {
+        HashSet<int> seen = new HashSet<int>();
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            int id = items[i].id;
+
+            if (id <= 0)
+            {
+                Debug.LogError("MaterialsManager: " + listName + " entry at index " + i +
+                               " has a non-positive id (" + id + "). Ownership cannot be stored for it.");
+                continue;
+            }
+
+            if (!seen.Add(id))
+                Debug.LogError("MaterialsManager: " + listName + " has a DUPLICATE id " + id +
+                               " at index " + i + ". Two cosmetics sharing an id means unlocking one " +
+                               "unlocks both - see docs/cosmetic-id-contract.md");
+        }
+
+        if (items.Count < baselineCount)
+            Debug.LogError("MaterialsManager: " + listName + " has " + items.Count +
+                           " entries, below the shipped baseline of " + baselineCount + ".");
     }
 }
