@@ -70,6 +70,13 @@ public class PlayerFall : MonoBehaviour
     {
         pickUpsManager.clearActivePickups();
         Utility.resetFlags();
+
+        // P2-06: end of a run is the natural flush point. Diamonds picked up during play are
+        // deferred (see PlayerStats.addDiamonds) to avoid a disk write per pickup mid-run, so
+        // without this they would only reach disk on backgrounding or quit. An interstitial may
+        // be about to take over the process, which is exactly when we want the write already done.
+        PlayerStats.Instance.Flush();
+
         numberOfLosesAfterAd++;
         if (numberOfLosesAfterAd % Random.Range(4, 7) == 0 || numberOfLosesAfterAd > 7)
         {
