@@ -29,24 +29,37 @@ upgrade. Unity `6000.5.7f1` is already installed on this machine, so there's no 
 
 ---
 
-## Step 0 — Capture the "before" reference (do this FIRST)
+## Step 0 — The "before" reference already exists
 
-**You cannot judge the "after" without this.** Open the **original** project in
-**Unity 2021.3.18f1** and capture reference shots. Fifteen minutes now saves an argument later.
+**You do not need to install Unity 2021.3.** The project already contains 46 screenshots of the
+shipped game, captured with Unity Recorder at three device sizes:
 
-Enter Play Mode and screenshot each of these at the same resolution:
+```
+Recordings/Mobile/Phone/Big     18 images  (1290x2796, iPhone Pro Max class)
+Recordings/Mobile/Phone/Small   14 images
+Recordings/Mobile/Tablet        14 images
+```
 
-| # | Shot | What it proves |
-|---|---|---|
-| 1 | Main menu, planet rotating, star field visible | Stencil + outline + bloom baseline |
-| 2 | Mid-run, ball on a straight section with track ahead | **The path fade gradient** — the thing most likely to break |
-| 3 | Mid-run, right at a turn with 3+ parts visible ahead | **Render-queue layering order** |
-| 4 | Shop, Balls tab, scrolled so 4+ planets are visible | **Stencil masking of list items** |
-| 5 | Shop, a Saturn or Jupiter ball (rings + multiple moons) | Moon orbits, LineRenderers, ring material |
-| 6 | Shop, Floors tab | Pattern material rendering |
-| 7 | High altitude in a run (score 200+), sky shifted to night | Sky colour lerp, galaxy plane, particles |
+These are the reference set. Two of them alone cover all four spike questions:
 
-Save them somewhere outside both projects, e.g. `C:\Work\Unity Projects\_SpikeReference\before\`.
+| Reference image | Covers |
+|---|---|
+| `Phone/Big/image_003_0000.jpg` | **Q1** path fade gradient into the distance, and **Q3** render-queue layering across several parts at a turn |
+| `Phone/Big/image_009_0000.jpg` | **Q2** shop stencil masking (each ball clipped to its cell), and **Q4** the white QuickOutline rims |
+
+Browse the rest and pick any others showing something specific you care about — a Saturn with
+rings and moons, the Floors tab, a high-altitude night sky.
+
+> `Recordings/` is gitignored, so these are not in the repo and exist only on this machine.
+> Copy the ones you plan to use somewhere safe before starting.
+
+**Optional, higher fidelity:** `_RisingWay_BuildArchive/Builds/Android/Rising Way.apk`
+(123.6 MB, dated 31 May 2024 — the same day as the shipped AAB) can be sideloaded onto an
+Android phone for a live reference you can compare against interactively. Worth doing only if a
+still turns out to be ambiguous.
+
+When you take the "after" shots in Unity 6, match the framing of the reference images as
+closely as you reasonably can — same screen, same rough camera position.
 
 ---
 
@@ -95,26 +108,26 @@ This is the path fade, applied to every track part via
 crossing five URP major versions.
 
 **Look for:** magenta (shader failed to compile), no fade at all, fade in the wrong direction,
-or hard edges where there should be a gradient. Compare against reference shot **#2**.
+or hard edges where there should be a gradient. Compare against `Phone/Big/image_003_0000.jpg`.
 
 ### Q2 — Does `Stencilled.shader` still mask the shop?
 Used by 9 materials and applied to every shop list item via `getStencilledMaterial()`.
 
 **Look for:** planets bleeding outside their list cells, items drawing on top of the scroll
-view, or the mystery-box reveal rendering incorrectly. Compare against **#4** and **#5**.
+view, or the mystery-box reveal rendering incorrectly. Compare against `Phone/Big/image_009_0000.jpg`.
 
 ### Q3 — Does the per-part render-queue sorting still layer the track?
 `PathMaker.updatePartsRenderQueue()` assigns `2000 + index` to every part's mesh and start/end
 blocks so they layer correctly during the fade. URP majors are known to disturb manual sorting.
 
 **Look for:** track parts drawing in the wrong order, z-fighting, parts popping in front of
-nearer ones. Compare against **#3** — this needs a turn with several parts visible.
+nearer ones. Compare against `Phone/Big/image_003_0000.jpg`, which shows a turn with several parts visible.
 
 ### Q4 — Do the Shader Graphs and QuickOutline survive?
 Two graphs (`Outlines`, `UnlitColor`) plus `ViewSpaceNormals`, and QuickOutline's
 command-buffer outline on the menu/shop ball.
 
-**Look for:** missing or doubled outlines on the player ball. Compare against **#1**.
+**Look for:** missing or doubled outlines on the player ball. Compare against `Phone/Big/image_009_0000.jpg` — every ball in that list has a white rim.
 
 ---
 
