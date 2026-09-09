@@ -1,30 +1,29 @@
-allprojects {
-    buildscript {
-        repositories {**ARTIFACTORYREPOSITORY**
-            google()
-            jcenter()
-        }
+// P1-04: rebuilt from the Unity 6000.5.7f1 default template.
+//
+// The previous version was the single biggest build blocker in the project:
+//   - com.android.tools.build:gradle:4.0.1  ->  AGP 9.0.0, declared via the plugins {} DSL
+//     instead of a buildscript classpath. AGP 4.0.1 cannot target SDK 35.
+//   - jcenter()  ->  removed entirely. JCenter was shut down; resolution through it fails.
+//   - net.sf.proguard:proguard-gradle:6.1.1  ->  removed. R8 has replaced ProGuard as the
+//     shrinker in modern AGP and this classpath entry is no longer used.
+//   - the allprojects { repositories { ... } } block  ->  moved to settingsTemplate.gradle,
+//     because AGP 9 resolves repositories through settings-level
+//     dependencyResolutionManagement rather than per-project declarations.
+//
+// There is nothing project-specific left here. If it stays identical to Unity's default it can
+// simply be deleted and the built-in template used instead - kept for now only so the
+// External Dependency Manager has a stable BUILD_SCRIPT_DEPS slot to inject into.
 
-        dependencies {
-            // If you are changing the Android Gradle Plugin version, make sure it is compatible with the Gradle version preinstalled with Unity
-            // See which Gradle version is preinstalled with Unity here https://docs.unity3d.com/Manual/android-gradle-overview.html
-            // See official Gradle and Android Gradle Plugin compatibility table here https://developer.android.com/studio/releases/gradle-plugin#updating-gradle
-            // To specify a custom Gradle version in Unity, go do "Preferences > External Tools", uncheck "Gradle Installed with Unity (recommended)" and specify a path to a custom Gradle version
-            classpath 'com.android.tools.build:gradle:4.0.1'
-			classpath 'net.sf.proguard:proguard-gradle:6.1.1'
-            **BUILD_SCRIPT_DEPS**
-        }
-    }
-
-    repositories {**ARTIFACTORYREPOSITORY**
-        google()
-        jcenter()
-        flatDir {
-            dirs "${project(':unityLibrary').projectDir}/libs"
-        }
-    }
+plugins {
+    // If you are changing the Android Gradle Plugin version, make sure it is compatible with the Gradle version preinstalled with Unity
+    // See which Gradle version is preinstalled with Unity here https://docs.unity3d.com/Manual/android-gradle-overview.html
+    // See official Gradle and Android Gradle Plugin compatibility table here https://developer.android.com/studio/releases/gradle-plugin#updating-gradle
+    // To specify a custom Gradle version in Unity, go do "Preferences > External Tools", uncheck "Gradle Installed with Unity (recommended)" and specify a path to a custom Gradle version
+    id 'com.android.application' version '9.0.0' apply false
+    id 'com.android.library' version '9.0.0' apply false
+    **BUILD_SCRIPT_DEPS**
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
 }

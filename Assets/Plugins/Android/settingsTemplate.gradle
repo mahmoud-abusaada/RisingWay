@@ -1,0 +1,35 @@
+// P1-04: new in Unity 6 / AGP 9. Repository declaration moved OUT of the per-project
+// buildscript block and into settings-level dependencyResolutionManagement.
+//
+// This is why the old baseProjectTemplate.gradle had to go: it declared repositories
+// (including the long-dead jcenter()) inside allprojects { buildscript { ... } }, which
+// RepositoriesMode.PREFER_SETTINGS now ignores.
+//
+// The External Dependency Manager injects its resolved repositories into this file. Do not
+// hand-edit the block it manages - run Assets > External Dependency Manager > Android Resolver
+// > Resolve instead.
+
+pluginManagement {
+    repositories {
+        **ARTIFACTORYREPOSITORY**
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+include ':launcher'
+include ':unityLibrary'
+**INCLUDES**
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        **ARTIFACTORYREPOSITORY**
+        google()
+        mavenCentral()
+        flatDir {
+            dirs "${project(':unityLibrary').projectDir}/libs"
+        }
+    }
+}
