@@ -164,7 +164,7 @@ public static class RisingWayDiagnostics
     private static void DumpCamera(StringBuilder sb, Camera cam)
     {
         sb.AppendLine();
-        sb.AppendLine("  [Camera] " + Path(cam.transform) + (cam.isActiveAndEnabled ? "" : "   (INACTIVE)"));
+        sb.AppendLine("  [Camera] " + HierarchyPath(cam.transform) + (cam.isActiveAndEnabled ? "" : "   (INACTIVE)"));
         Line(sb, "    clearFlags", cam.clearFlags.ToString());
         Line(sb, "    backgroundColor", Col(cam.backgroundColor));
         Line(sb, "    allowHDR", cam.allowHDR.ToString());
@@ -198,7 +198,7 @@ public static class RisingWayDiagnostics
     private static void DumpGameObject(StringBuilder sb, GameObject go)
     {
         sb.AppendLine();
-        sb.AppendLine("  [GameObject] " + Path(go.transform));
+        sb.AppendLine("  [GameObject] " + HierarchyPath(go.transform));
         Line(sb, "    activeInHierarchy", go.activeInHierarchy.ToString());
         Line(sb, "    layer", LayerMask.LayerToName(go.layer) + " (" + go.layer + ")");
         Line(sb, "    world position", go.transform.position.ToString("0.##"));
@@ -213,7 +213,7 @@ public static class RisingWayDiagnostics
 
         foreach (Renderer r in renderers)
         {
-            sb.AppendLine("    [Renderer] " + Path(r.transform) + "  (" + r.GetType().Name + ")");
+            sb.AppendLine("    [Renderer] " + HierarchyPath(r.transform) + "  (" + r.GetType().Name + ")");
             Line(sb, "      enabled", r.enabled.ToString());
             Line(sb, "      isVisible", r.isVisible.ToString());
             Line(sb, "      shadowCastingMode", r.shadowCastingMode.ToString());
@@ -357,7 +357,7 @@ public static class RisingWayDiagnostics
         return null;
     }
 
-    private static string Path(Transform t)
+    private static string HierarchyPath(Transform t)
     {
         string path = t.name;
         Transform p = t.parent;
