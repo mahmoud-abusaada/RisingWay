@@ -12,7 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import groovy.util.XmlSlurper
+// LOCAL PATCH (P1-04) - vendored Google file; a GMA update in P1-05 will overwrite this.
+//
+// Was: import groovy.util.XmlSlurper
+// Unity 6 ships Gradle 9.1.0, which runs Groovy 4, and Groovy 4 moved XmlSlurper from
+// groovy.util to groovy.xml. This script failed to compile and took the whole Android build
+// down with "unable to resolve class groovy.util.XmlSlurper". The line below was already
+// importing from groovy.xml, so this is only the matching namespace.
+//
+// GMA 9.1.0 predates Gradle 9. Updating the plugin is the real fix and makes this redundant -
+// re-check after P1-05 rather than carrying the patch forward blindly.
+import groovy.xml.XmlSlurper
 import groovy.xml.XmlUtil
 
 import java.util.zip.ZipEntry
