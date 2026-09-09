@@ -155,13 +155,15 @@ blend state all agreeing. Options, in increasing order of effort:
 
 ## 6. Still unverified
 
-- **Q3 visually.** The track layering was never seen in motion — the run was blocked by the
-  update dialog, then by the white sky. Re-check after the material fix.
-- **The build.** Step 5 of the spike (an Android build attempt) was not reached. AGP 4.0.1,
-  `jcenter()` and Jetifier are all still in place, so it is expected to fail; what matters is
-  which failure comes first, because that orders P1-04.
-- **P2-01 through P2-06.** All written after the spike clone was taken, so none of it has been
-  through a compiler. Merging `main` into the spike clone is a free compile check.
+Everything the spike set out to answer is answered. One item was deliberately not attempted:
+
+- **The Android build.** Step 5 of the spike procedure was not reached, and that is fine — AGP
+  4.0.1, `jcenter()` and Jetifier are all still in place, so a build is *expected* to fail. What
+  matters is which failure surfaces first, because that orders the P1-04 work. Left until the
+  real project is on Unity 6, so the failure is diagnosed once rather than twice.
+
+Resolved during the spike and no longer open: Q3 (verified with Saturn), and P2-01 through
+P2-06 (compile-clean, with the save layer additionally proven functionally — see section 1b).
 
 ---
 
