@@ -60,7 +60,7 @@ public class PlayerTrigger : MonoBehaviour
             {
                 Utility.stoppedForTutorials = true;
                 playerMovement.speed = 0;
-                GetComponent<Rigidbody>().velocity = Vector3.zero;
+                GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
                 GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
                 // transform.position = playerStopPosition;
                 fullStopCurrentDistance = 0;
@@ -216,7 +216,7 @@ public class PlayerTrigger : MonoBehaviour
             {
                 Utility.stoppedForTutorials = true;
                 playerMovement.speed = 0;
-                GetComponent<Rigidbody>().velocity = Vector3.zero;
+                GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
                 GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
                 transform.position = playerStopPosition;
                 distanceToPosition = 0;

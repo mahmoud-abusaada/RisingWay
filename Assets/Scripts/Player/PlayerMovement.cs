@@ -242,10 +242,10 @@ public class PlayerMovement : MonoBehaviour
                                         0,
                                         direction == Directions.North ? speed : direction == Directions.South ? -speed : 0);
 
-        if (myRB.velocity.magnitude < speed)
-            calculatedVelocity.y += myRB.velocity.y * 1.1f;
+        if (myRB.linearVelocity.magnitude < speed)
+            calculatedVelocity.y += myRB.linearVelocity.y * 1.1f;
 
-        myRB.velocity = calculatedVelocity;
+        myRB.linearVelocity = calculatedVelocity;
     }
 
     void stickToTheGround()

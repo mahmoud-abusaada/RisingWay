@@ -37,11 +37,11 @@ public class ListItemAnimator : MonoBehaviour
             {
                 distance = Mathf.Abs(ball.localPosition.x - originalPosition.x);
                 distance = distance > 0.1f ? distance : 0.1f;
-                ball.GetComponent<Rigidbody>().velocity = new Vector3(distance, 0, 0);
+                ball.GetComponent<Rigidbody>().linearVelocity = new Vector3(distance, 0, 0);
             }
             else
             {
-                ball.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
+                ball.GetComponent<Rigidbody>().linearVelocity = new Vector3(0, 0, 0);
                 ball.GetComponent<Rigidbody>().isKinematic = true;
                 ball.localPosition = new Vector3(originalPosition.x, ball.localPosition.y, ball.localPosition.z);
                 isInPosition = true;
