@@ -1,6 +1,7 @@
 # P1-01 Unity 6 Spike — Results
 
-**Verdict: GO.** Proceed with Unity 6 LTS. The two-step fallback via 2022.3 is not needed.
+**Verdict: GO — CLOSED.** All four questions verified on screen, not just compiled. Proceed with
+Unity 6 LTS; the two-step fallback via 2022.3 is not needed.
 
 **Ran:** Unity `6000.5.7f1`, clone at `RisingWay-U6Spike`, branch `spike/unity6`, from commit
 `d7a8cfd` (pre-P2-04 code).
@@ -9,15 +10,35 @@
 
 ## 1. The four questions
 
-| # | Question | Result |
-|---|---|---|
-| Q1 | Does `LitFadeWhenClose.shader` still compile and fade the path? | **Compiles clean.** No shader errors. |
-| Q2 | Does `Stencilled.shader` still mask the shop? | **Compiles clean.** |
-| Q3 | Does the per-part render-queue sorting still layer the track? | **Compiles clean.** Visual confirmation still pending a run past the menu. |
-| Q4 | Do the Shader Graphs and QuickOutline survive? | **Compile clean.** |
+| # | Question | Compiles | Verified on screen |
+|---|---|---|---|
+| Q1 | Does `LitFadeWhenClose.shader` still fade the path? | Clean | **Yes** |
+| Q2 | Does `Stencilled.shader` still mask the shop? | Clean | **Yes** |
+| Q3 | Does the per-part render-queue sorting still layer correctly? | Clean | **Yes** — checked with Saturn (ring + 8 moons), the heaviest case |
+| Q4 | Do the Shader Graphs and QuickOutline survive? | Clean | **Yes** |
 
 **Zero compile errors. Zero shader errors. Zero exceptions.** This was the biggest unknown in
 the whole plan and it came through. Every warning is a known, scoped work item.
+
+## 1b. P2 code verified in the same pass
+
+The spike clone was taken at `d7a8cfd`, so it already contained P2-01/02/03; the P2-04/05/06
+files were copied in afterwards. All of it compiles clean under Unity 6.
+
+P2-04/05/06 are also **functionally** verified, not just compiled. After play-testing,
+`%USERPROFILE%/AppData/LocalLow/Abu Sa'da/Rising Way/risingway.save.json` contained:
+
+```json
+"schemaVersion": 1, "diamonds": 41, "bolts": 3,
+"highScore": 115, "timesPlayed": 7, "tutorialsOn": false,
+"ownedBallIds": [1], "ownedFloorIds": [1]
+```
+
+That confirms: the versioned save is created, the clean-slate default is applied (legacy
+PlayerPrefs correctly ignored), currency and progress persist across sessions, tutorial
+completion sticks, atomic write plus `.bak` rotation work, and hand-editing the file to unlock
+content works — which is how the Saturn render-queue test above was set up. Under the old
+PlayerPrefs system that would have required registry editing.
 
 ---
 
