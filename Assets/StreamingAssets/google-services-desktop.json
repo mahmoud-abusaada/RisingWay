@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "601087029487",
+    "project_id": "rising-way",
+    "storage_bucket": "rising-way.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:601087029487:android:e9baf797d0cac01e946b1a",
+        "android_client_info": {
+          "package_name": "com.AbuSada.RisingWay"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4yN2MNmHSInbUeC97glkl-DKvSH8PulE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

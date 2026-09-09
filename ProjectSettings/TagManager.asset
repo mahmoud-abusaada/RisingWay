@@ -1,0 +1,80 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - CurveSt
+  - Slide
+  - CurveUp
+  - Diamond
+  - TutorialSlowDown
+  - TutorialTurnLeft
+  - TutorialTurnRight
+  - Destroyer
+  - LandStart
+  - LandStraight
+  - LandRight
+  - LandLeft
+  - AutoPilot
+  - Land
+  - StartTrigger
+  - Bolt
+  - DoublePoint
+  - Chance
+  - ListItem
+  - Planet
+  - MysteryBox
+  - MysteryBall
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - Outlined
+  - ObjectsScrollArea
+  - DiamondTexture
+  - CurrentBallGroundTexture
+  - BuyDiamondsTexture
+  - Receive3DirectionalLights
+  - Player
+  - ObjectsScrollAndDefault
+  - Planet
+  - ObjectsScrollAndPlanet
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Galaxy
+    uniqueID: 3943772523
+    locked: 0
+  - name: Stars
+    uniqueID: 200190783
+    locked: 0
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Moon
+    uniqueID: 2987841893
+    locked: 0
+  - name: Player
+    uniqueID: 3746922637
+    locked: 0
+  - name: Lock
+    uniqueID: 3669878595
+    locked: 0
