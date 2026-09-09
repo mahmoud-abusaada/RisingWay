@@ -1,0 +1,102 @@
+using System.Collections.Generic;
+
+/// <summary>
+/// The complete player save. Serialised to JSON by <see cref="SaveSystem"/>.
+///
+/// P2-04. Replaces ~40 loose PlayerPrefs keys plus one key per owned cosmetic
+/// (Ball_1 .. Ball_72, Floor_1 .., FloorPattern_101 ..) with a single versioned document.
+///
+/// WHAT LIVES HERE vs PlayerPrefs
+/// ------------------------------
+/// Here: anything that represents player progress or entitlement, i.e. everything that
+/// should follow the player to a new device once cloud save lands in P7-02.
+///
+/// PlayerPrefs: genuinely device-local settings - audio levels, render density, frame cap,
+/// HDR/emission - plus the remote-config cache, which is disposable.
+///
+/// JsonUtility constraints
+/// -----------------------
+/// Fields must be public, non-readonly, and of types JsonUtility understands. That rules out
+/// Dictionary and HashSet, which is why ownership is stored as List&lt;int&gt; and wrapped by
+/// lookup helpers in PlayerStats rather than exposed directly.
+/// </summary>
+[System.Serializable]
+public class SaveData
+{
+    /// <summary>
+    /// Bump whenever the shape of this class changes in a way that needs fixing up on load,
+    /// and add the corresponding step to SaveSystem.Migrate().
+    ///
+    /// Version 1 is the first schema. There is deliberately no migration from the old
+    /// PlayerPrefs layout: the clean-slate decision means pre-2024 saves are not carried over.
+    /// The field exists from day one so the NEXT change has an anchor to migrate from.
+    /// </summary>
+    public const int CURRENT_SCHEMA_VERSION = 1;
+
+    public int schemaVersion = CURRENT_SCHEMA_VERSION;
+
+    // ---------------------------------------------------------------- currencies
+    public int diamonds = 0;
+    public int doublePoints = 0;
+    public int bolts = 0;
+    public int chances = 0;
+    public int mysteryBoxes = 0;
+
+    // ---------------------------------------------------------------- progress
+    public int highScore = 0;
+    public int timesPlayed = 0;
+
+    // ---------------------------------------------------------------- upgrades
+    // Levels are 1-based. Caps live in Utility.Constants
+    // (DOUBLE_POINTS_MAX_LEVEL, BOLT_MAX_LEVEL, CHANCE_MAX_LEVEL).
+    public int doublePointsLevel = 1;
+    public int boltLevel = 1;
+    public int chanceLevel = 1;
+
+    // ---------------------------------------------------------------- cosmetics
+    // IDs come from the serialized lists on the MaterialsManager component in SampleScene:
+    // ball IDs and colour-floor IDs start at 1, pattern-floor IDs start at 101, so ball and
+    // floor ID spaces never collide and a single owned-list per category is enough.
+    //
+    // P2-05: these IDs are a PERMANENT CONTRACT the moment a build ships. Reordering or
+    // inserting into those scene lists reassigns what every player owns. Do not renumber.
+    public int selectedBallId = 1;
+    public int selectedFloorId = 1;
+    public List<int> ownedBallIds = new List<int>();
+    public List<int> ownedFloorIds = new List<int>();
+
+    // ---------------------------------------------------------------- entitlements
+    /// <summary>
+    /// True once the "remove_ads" non-consumable has been purchased or restored.
+    ///
+    /// Stored as "removed" rather than "enabled" so the default (false) means ads are on,
+    /// and so no code path can turn ads back on by writing a default value. P2-01 was caused
+    /// by exactly that: MenusController.Awake() force-wrote the old enabled flag to true on
+    /// every launch and destroyed the purchase.
+    /// </summary>
+    public bool adsRemoved = false;
+
+    // ---------------------------------------------------------------- player preferences
+    // These follow the account rather than the device: a returning player should not be
+    // re-tutorialised or have their control scheme reset on a new phone.
+    public bool tutorialsOn = true;
+
+    /// <summary>
+    /// Stored as the string name of <see cref="GamePlayMode"/> rather than the enum value, so
+    /// reordering the enum cannot silently change a player's control scheme.
+    /// Parsed defensively in PlayerStats.getGamePlayMode().
+    /// </summary>
+    public string gamePlayMode = "SingleTap";
+
+    /// <summary>
+    /// A brand-new player starts owning the first ball and the first floor, matching the old
+    /// behaviour where PlayerMovement.Awake() called unlockBall(1) / unlockFloor(1).
+    /// </summary>
+    public static SaveData CreateDefault()
+    {
+        SaveData data = new SaveData();
+        data.ownedBallIds.Add(1);
+        data.ownedFloorIds.Add(1);
+        return data;
+    }
+}

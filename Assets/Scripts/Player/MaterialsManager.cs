@@ -34,11 +34,18 @@ public class MaterialsManager : MonoBehaviour
         // updatePatternFloorsPrices();
     }
 
+    // P2-04: cosmetic ownership and selection now go through PlayerStats, which owns all
+    // persistence. This class keeps only the in-memory material lookup and caching.
+    //
+    // The old code wrote one PlayerPrefs key per item and tested ownership with
+    // PlayerPrefs.HasKey, so any value - including 0 - counted as owned. Ownership is now an
+    // explicit list in the save file.
+
     public ColorMaterial getSelectedBallMaterial()
     {
         if (selectedBallMaterial == null)
         {
-            int id = PlayerPrefs.GetInt(Utility.Constants.KEY_CURRENT_BALL, 1);
+            int id = PlayerStats.Instance.getSelectedBallId();
             selectedBallMaterial = getBallMaterialById(id);
             if (selectedBallMaterial == null)
                 selectedBallMaterial = getBallMaterialById(1);
@@ -49,16 +56,14 @@ public class MaterialsManager : MonoBehaviour
     public void setSelectedBallMaterial(int id)
     {
         selectedBallMaterial = getBallMaterialById(id);
-        PlayerPrefs.SetInt(Utility.Constants.KEY_CURRENT_BALL, id);
-        unlockBall(id);
-        PlayerPrefs.Save();
+        PlayerStats.Instance.setSelectedBallId(id);
     }
 
     public BaseMaterial getSelectedFloorMaterial()
     {
         if (selectedFloorMaterial == null)
         {
-            int id = PlayerPrefs.GetInt(Utility.Constants.KEY_CURRENT_FLOOR, 1);
+            int id = PlayerStats.Instance.getSelectedFloorId();
             selectedFloorMaterial = getFloorMaterialById(id);
             if (selectedFloorMaterial == null)
                 selectedFloorMaterial = getFloorMaterialById(1);
@@ -69,32 +74,34 @@ public class MaterialsManager : MonoBehaviour
     public void setSelectedFloorMaterial(int id)
     {
         selectedFloorMaterial = getFloorMaterialById(id);
-        PlayerPrefs.SetInt(Utility.Constants.KEY_CURRENT_FLOOR, id);
-        unlockFloor(id);
-        PlayerPrefs.Save();
+        PlayerStats.Instance.setSelectedFloorId(id);
     }
 
     public void unlockBall(int id)
     {
-        PlayerPrefs.SetInt(getBallKey(id), 1);
-        PlayerPrefs.Save();
+        PlayerStats.Instance.unlockBall(id);
     }
 
     public void unlockFloor(int id)
     {
-        PlayerPrefs.SetInt(getFloorKey(id), 1);
-        PlayerPrefs.Save();
+        PlayerStats.Instance.unlockFloor(id);
     }
 
     public bool isBallOwned(int id)
     {
-        return isMaterialOwned(getBallKey(id));
+        return PlayerStats.Instance.isBallOwned(id);
     }
 
     public bool isFloorOwned(int id)
     {
-        return isMaterialOwned(getFloorKey(id)) || isMaterialOwned(getFloorPatternKey(id));
+        // Colour floors use IDs from 1 and pattern floors from 101, so the two ID spaces never
+        // collide and one owned-list covers both. The old dual-key lookup is no longer needed.
+        return PlayerStats.Instance.isFloorOwned(id);
     }
+
+    // These three are NOT storage keys any more - they are the GameObject names ShopMenu gives
+    // its list items, and it looks them up with listContainer.Find(...). Renaming or removing
+    // them silently breaks the lock/select animations in the shop.
 
     public string getBallKey(int id)
     {
@@ -109,11 +116,6 @@ public class MaterialsManager : MonoBehaviour
     public string getFloorPatternKey(int id)
     {
         return Utility.Constants.FLOOR_PATTERN_KEY_NAME + id;
-    }
-
-    private bool isMaterialOwned(string name)
-    {
-        return PlayerPrefs.HasKey(name);
     }
 
     public ColorMaterial getBallMaterialById(int id)

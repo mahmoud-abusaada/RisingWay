@@ -7,6 +7,20 @@ public class Utility : MonoBehaviour
 
     public class Constants
     {
+        // ------------------------------------------------------------------------------
+        // RETIRED PlayerPrefs keys - P2-04.
+        //
+        // Everything in this block moved into the versioned save file (SaveData/SaveSystem)
+        // and is no longer read or written anywhere. They are kept, not deleted, because they
+        // are the only remaining record of the pre-2024 on-device key names.
+        //
+        // That matters if the clean-slate decision is ever revisited: reading a legacy save
+        // would mean reading exactly these keys, plus one key per owned cosmetic in the form
+        // BALL_KEY_NAME + id / FLOOR_KEY_NAME + id / FLOOR_PATTERN_KEY_NAME + id, where
+        // ownership was signalled by mere key existence rather than by value.
+        //
+        // Do not reuse these names for anything new.
+        // ------------------------------------------------------------------------------
         public const string KEY_CURRENT_BALL = "key_current_ball";
         public const string KEY_CURRENT_FLOOR = "key_current_floor";
         public const string KEY_DIAMONDS = "key_diamonds";
@@ -20,6 +34,14 @@ public class Utility : MonoBehaviour
         public const string KEY_HIGH_SCORE = "key_high_score";
         public const string KEY_TIMES_PLAYED = "key_times_played";
         public const string KEY_TUTORIALS_ON = "key_tutorials_on";
+        public const string KEY_ADS_ENABLED = "key_ads_enabled";
+        public const string KEY_SELECTED_GAMEPLAY_MODE = "key_selected_gameplay_mode";
+
+        // ------------------------------------------------------------------------------
+        // Live PlayerPrefs keys - device-local settings and the disposable remote-config
+        // cache. These deliberately stay out of the save file so they do not sync when
+        // cloud save lands in P7-02.
+        // ------------------------------------------------------------------------------
         public const string KEY_AUTO_PILOT_ON = "key_auto_pilot_on";
         public const string KEY_STAY_IN_SPACE_ON = "key_stay_in_space_on";
         public const string KEY_EMISSION_ON = "key_emission_on";
@@ -27,10 +49,8 @@ public class Utility : MonoBehaviour
         public const string KEY_AMBIENT_LEVEL = "key_ambient_level";
         public const string KEY_SFX_LEVEL = "key_sfx_level";
         public const string KEY_MENUS_LEVEL = "key_menus_level";
-        public const string KEY_ADS_ENABLED = "key_ads_enabled";
         public const string KEY_FRAMES_LIMIT = "key_frames_limit";
         public const string KEY_DENSITY_LEVEL = "key_density_level";
-        public const string KEY_SELECTED_GAMEPLAY_MODE = "key_selected_gameplay_mode";
         public const string KEY_UPDATE_VERSION = "key_update_version";
         public const string KEY_FORCE_UPDATE_VERSION = "key_force_update_version";
         public const string KEY_FACEBOOK_LINK = "key_facebook_link";
