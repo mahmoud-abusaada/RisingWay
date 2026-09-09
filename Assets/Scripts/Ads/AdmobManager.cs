@@ -4,11 +4,10 @@ using UnityEngine;
 using GoogleMobileAds.Api;
 using GoogleMobileAds.Sample;
 using System;
-using GoogleMobileAds.Mediation.IronSource.Api;
-using GoogleMobileAds.Mediation.LiftoffMonetize.Api;
-using GoogleMobileAds.Mediation.Chartboost.Api;
-using GoogleMobileAds.Mediation.AppLovin.Api;
-using GoogleMobileAds.Mediation.InMobi.Api;
+// P1-05: the GoogleMobileAds.Mediation.* namespaces came from the seven mediation adapter
+// packages, which were removed during the GMA 9.1.0 -> 11.5.0 upgrade so the core plugin could
+// be brought up in isolation. Adapters get re-added deliberately once the build is green -
+// see docs/p1-05-sdk-update.md.
 
 public class AdmobManager : MonoBehaviour
 {
@@ -51,43 +50,32 @@ public class AdmobManager : MonoBehaviour
         reviveAdController = FindObjectOfType<ReviveAdController>();
     }
 
-    [Obsolete]
     void Start()
     {
-        // On Android, Unity is paused when displaying interstitial or rewarded video.
-        // This setting makes iOS behave consistently with Android.
-        MobileAds.SetiOSAppPauseOnBackground(true);
+        // P2-09: the child-directed tag is gone.
+        //
+        // This used to set TagForChildDirectedTreatment.True and MaxAdContentRating.G for EVERY
+        // user, which globally disables personalised advertising and restricts the eligible
+        // demand pool to child-safe, non-behavioural inventory. Rising Way is a general-audience
+        // game, so that was suppressing ad revenue for no reason. The store listing age rating
+        // and Data Safety declarations must stay consistent with this - see P9-02.
+        //
+        // Also removed: hardcoded consent declarations for six mediation networks
+        // (IronSource.SetConsent(true), AppLovin.SetHasUserConsent(true),
+        // LiftoffMonetize.SetGDPRStatus(true, ...), InMobi.UpdateGDPRConsent({gdpr: "1"}),
+        // Chartboost.AddDataUseConsent(...), plus CCPA/do-not-sell flags). Those declared consent
+        // on the user's behalf before any dialog was shown, which is a regulatory exposure in the
+        // EEA/UK and a Google Play policy problem. Real consent must come from the UMP flow -
+        // GoogleMobileAdsConsentController already exists and is wired up in P2-07.
+        //
+        // MobileAds.SetiOSAppPauseOnBackground was also dropped; it is deprecated and was the
+        // reason this method carried an [Obsolete] attribute.
 
-        // Configure your RequestConfiguration with Child Directed Treatment
-        // and the Test Device Ids.
         RequestConfiguration requestConfiguration = new RequestConfiguration
         {
-            TagForChildDirectedTreatment = TagForChildDirectedTreatment.True,
-            MaxAdContentRating = MaxAdContentRating.G,
             TestDeviceIds = TestDeviceIds
         };
         MobileAds.SetRequestConfiguration(requestConfiguration);
-
-        IronSource.SetConsent(true);
-        IronSource.SetMetaData("do_not_sell", "true");
-
-        LiftoffMonetize.SetCCPAStatus(true);
-        LiftoffMonetize.SetGDPRStatus(true, "v1.0.0");
-        #if UNITY_IPHONE
-            LiftoffMonetize.SetGDPRMessageVersion("v1.0.0");
-        #endif
-
-        Chartboost.AddDataUseConsent(CBGDPRDataUseConsent.NonBehavioral);
-
-        AppLovin.SetHasUserConsent(true);
-        AppLovin.SetIsAgeRestrictedUser(true);
-        AppLovin.SetDoNotSell(true);
-
-        Dictionary<string, string> consentObject = new Dictionary<string, string>();
-        consentObject.Add("gdpr_consent_available", "true");
-        consentObject.Add("gdpr", "1");
-
-        InMobi.UpdateGDPRConsent(consentObject);
 
         InitializeGoogleMobileAds();
     }
