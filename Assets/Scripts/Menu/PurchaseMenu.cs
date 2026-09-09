@@ -92,6 +92,11 @@ public class PurchaseMenu : MonoBehaviour, IStoreListener
         // Chances
         foreach (ProductItem p in products)
         {
+            // P2-03: CreateProductsUI() runs from BOTH OnEnable and OnInitialized, so without
+            // this unsubscribe the handler stacked up once per store visit and a single Buy tap
+            // fired controller.InitiatePurchase() once for every previous visit.
+            // Unsubscribing a delegate that was never added is a safe no-op.
+            p.OnPurchase -= HandlePurchase;
             p.OnPurchase += HandlePurchase;
             p.Setup(controller?.products.WithID(p.productId));
         }
