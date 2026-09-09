@@ -27,10 +27,13 @@ public class MenusController : MonoBehaviour
     private AdmobManager adsManager;
     private bool cameraSwitched = false;
 
-    void Awake()
-    {
-        PlayerStats.Instance.setAdsEnabled(true);
-    }
+    // P2-01: Awake() used to call PlayerStats.Instance.setAdsEnabled(true) here, which wiped the
+    // "remove_ads" non-consumable on every launch. isAdEnabled() is the only gate on every ad in
+    // the game, so a paying player saw ads again the next time they opened the app - permanently,
+    // with no way to fix it themselves.
+    // The call was never needed: isAdEnabled() already defaults to enabled via
+    // PlayerPrefs.GetInt(KEY_ADS_ENABLED, 1), so fresh installs still get ads without it.
+    // Do not reintroduce.
 
     void Start()
     {
