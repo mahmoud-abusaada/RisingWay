@@ -1,7 +1,7 @@
 # P1-05 — SDK Updates
 
-**Status:** GMA and EDM4U done. Firebase outstanding. **Blocked on a project-path issue** that
-is unrelated to any SDK.
+**Status:** GMA and EDM4U done. Firebase outstanding but no longer blocking. The project-path
+blocker is RESOLVED — the Android build is green.
 
 ---
 
@@ -92,45 +92,90 @@ Untouched. Still resolving `firebase-analytics:21.3.0`, `firebase-app-unity:11.6
 
 ---
 
-## Current blocker: spaces in the project path
+## RESOLVED: spaces in the project path
+
+The build failed at `:launcher:checkReleaseDuplicateClasses` with:
 
 ```
-Execution failed for task ':launcher:checkReleaseDuplicateClasses'.
-> Cannot convert URI 'file:///C:/Work/Unity Projects/Rising Way/Assets/GeneratedLocalRepo/Firebase/m2repository' to a file.
+Cannot convert URI 'file:///C:/Work/Unity Projects/Rising Way/Assets/GeneratedLocalRepo/Firebase/m2repository' to a file.
 ```
 
 Firebase ships its Android artifacts as a **local Maven repository** rather than pulling from a
-remote. EDM4U declares it as a `file:///` URL built by string concatenation:
+remote, and EDM4U declares it as a `file:///` URL built by string concatenation:
 
 ```groovy
 def unityProjectPath = $/file:///**DIR_UNITYPROJECT**/$.replace("\\", "/")
 maven { url (unityProjectPath + "/Assets/GeneratedLocalRepo/Firebase/m2repository") }
 ```
 
-The project path is `C:\Work\Unity Projects\Rising Way` — **two spaces**. Unencoded spaces make
-an invalid URI, and Gradle 9 refuses to convert it to a file where older Gradle tolerated it.
+The old path `C:\Work\Unity Projects\Rising Way` contained two spaces. Unencoded spaces make an
+invalid URI, and Gradle 9 refuses to convert it where older Gradle tolerated it.
 
-This is **not** an SDK-version problem. It is an EDM4U/Gradle-9 incompatibility triggered by the
-path, and EDM4U 1.2.188 is already the newest version.
+### The hypothesis was tested before acting
 
-### Options
+Rather than move the project on a hunch, the two paths were fed to Unity's own bundled Gradle
+9.1.0 directly:
 
-1. **Move the project to a path with no spaces** — e.g. `C:\Work\RisingWay`. Permanent, fixes it
-   for every SDK that ships a local Maven repo, and costs nothing at build time. Disruptive once:
-   Unity Hub entry, any absolute paths, this repo's location. **Recommended.**
-2. **Update Firebase** — worth doing regardless, but newer Firebase Unity SDKs still ship an
-   m2repository, so this probably does not fix it on its own.
-3. **Patch the generated Gradle** to percent-encode the URI — EDM4U rewrites that block on every
-   resolve, so it would not survive.
+```
+FAIL -> file:///C:/Work/Unity Projects/Rising Way/...
+        URISyntaxException: Illegal character in path at index 21
+OK   -> file:///C:/Work/RisingWay/...
+```
 
-Option 1 is the only durable fix that does not depend on a third party changing their generator.
+Worth stating plainly, because it is counter-intuitive: Unity's *own* default project location is
+`C:\Users\<name>\Documents\Unity Projects`, which also contains spaces. This is not a
+long-standing rule anyone should have known — Gradle 9.1.0 is new and tightened URI validation,
+so this likely bites everyone on Unity 6.5 + Firebase + a spaced path.
+
+### The cheaper fix was tried first, and did not work
+
+EDM4U exposes `useFullCustomMavenRepoPathWhenExport` / `...WhenNotExport`, which sound like they
+would produce a relative path. Setting them achieved nothing, and the reason is worth recording so
+nobody tries it again: `projectExportEnabled` is `False` for a normal Unity build, so the
+governing setting was `...WhenNotExport`, and that was **already** `False`. Neither flag avoids an
+absolute URI — the `**DIR_UNITYPROJECT**` token expands to an absolute path either way.
+
+### Resolution
+
+The project was moved to **`C:\Work\RisingWay`**. Same-volume rename, so it completed in 0.1s and
+the git repository travelled with it intact. Nothing tracked in the repo hardcoded the old path.
+
+The stale generated Gradle project under `Library/Bee/Android/Prj/IL2CPP/Gradle` had the old path
+baked in and was deleted so it would regenerate; the 6.9 GB IL2CPP artifact cache was kept.
+
+**Verified.** The regenerated `settings.gradle` now reads:
+
+```groovy
+def unityProjectPath = $/file:///C:/Work/RisingWay/$.replace("\\", "/")
+```
+
+and the build produced a **124 MB APK** — the first green Android build since the Unity 6
+migration. The `Cannot convert URI` error is gone.
+
+**Consequences for everyone else:**
+
+- The project must be re-added in Unity Hub at its new location.
+- `C:\Work\Unity Projects\Keys` did **not** move. See IF-02 in `incidental-findings.md`.
+- Never put this project back on a path containing spaces.
+
+---
+
+## Side effects observed on the first green build
+
+Two things surfaced that are unrelated to the SDK work and are recorded in
+`incidental-findings.md` rather than fixed here:
+
+- **IF-01** — Active Input Handling is "Both" while nothing uses the new Input System.
+- **IF-03** — the build cleared `preloadedAssets`, dropping Adaptive Performance's settings.
+  `ProjectSettings.asset` was restored; expect the clear to recur until a decision is made.
 
 ---
 
 ## Next
 
-1. Decide on the project path.
-2. Update Firebase 11.6.0 → current.
-3. Re-run the build. It currently completes the full IL2CPP compile for both architectures and
-   reaches `:launcher:checkReleaseDuplicateClasses`, so remaining failures should be shallow.
-4. Re-add mediation adapters deliberately, at current versions.
+1. ~~Decide on the project path.~~ Done — moved to `C:\Work\RisingWay`.
+2. Update Firebase 11.6.0 → current. **Needs approval**: it means downloading the SDK from Google.
+   Note the build is green *without* this, so it is no longer urgent.
+3. Re-add mediation adapters deliberately, at current versions.
+4. Install the APK on a device and confirm it actually launches. A green build is not a working
+   game — GMA needs its App ID present at runtime, and that has not been exercised yet.
