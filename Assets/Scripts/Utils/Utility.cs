@@ -93,6 +93,12 @@ public class Utility : MonoBehaviour
 
     public static bool camFollowPlayer = false;
 
+    // P8-03: true only after a remote-config fetch SUCCEEDED this session. Deliberately NOT
+    // persisted - a force-update must never be honoured from a cached value, or a dead endpoint
+    // keeps gating startup forever. Not cleared by resetFlags(): it describes this app run,
+    // not this game run.
+    public static bool remoteConfigLoaded = false;
+
     public static bool stoppedForTutorials = false;
 
     public static bool shouldDequeue = false;

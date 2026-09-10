@@ -69,47 +69,96 @@ public class MainMenu : MonoBehaviour
         StartCoroutine(FetchData());
     }
 
+    // P8-03: the update gate now fails OPEN.
+    //
+    // It used to fail closed, and that is what made a lapsed domain fatal rather than merely
+    // annoying. Three separate faults combined:
+    //
+    //   1. Only Result.ConnectionError counted as failure. A 404 or 500 is a ProtocolError, so
+    //      an error page fell into the SUCCESS branch and was handed to JsonUtility.FromJson,
+    //      which throws on HTML and killed the coroutine part-way through.
+    //   2. The dialog was then shown from values cached in PlayerPrefs by an earlier fetch, so a
+    //      stale forceUpdateVersion kept gating startup long after the server stopped answering.
+    //   3. Cancel() called Application.Quit() when that stale value applied. In the Editor Quit()
+    //      is a no-op, which is why the dialog looked "stuck" rather than closing the game.
+    //
+    // A force-update is now honoured ONLY from a successful fetch in THIS session. An unreachable
+    // or broken endpoint can no longer stop anyone from playing, whatever it serves or fails to.
+    // Lives on Utility because the dialog's buttons are wired to UpdateHandler, not to this
+    // class - both need the same answer to "did a fetch actually succeed this session?".
+
     public IEnumerator FetchData()
     {
         using (UnityWebRequest request = UnityWebRequest.Get(URL))
         {
             yield return request.SendWebRequest();
-            if (request.result == UnityWebRequest.Result.ConnectionError)
+
+            if (request.result != UnityWebRequest.Result.Success)
             {
-                Debug.Log(request.error);
-                ShowUpdateDialog();
+                Debug.LogWarning($"Remote config unavailable ({request.result}): {request.error}. Continuing without it.");
+                HideUpdateDialog();
+                yield break;
             }
-            else
+
+            UpdateVersions updateVersions = null;
+            try
             {
-                UpdateVersions updateVersions = new UpdateVersions();
                 updateVersions = JsonUtility.FromJson<UpdateVersions>(request.downloadHandler.text);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"Remote config was not valid JSON, ignoring it: {e.Message}");
+            }
+
+            if (updateVersions == null)
+            {
+                HideUpdateDialog();
+                yield break;
+            }
 
 #if UNITY_IPHONE
-                PlayerStats.Instance.setUpdateVersion(updateVersions.iosUpdateVersion);
-                PlayerStats.Instance.setForceUpdateVersion(updateVersions.iosForceUpdateVersion);
+            PlayerStats.Instance.setUpdateVersion(updateVersions.iosUpdateVersion);
+            PlayerStats.Instance.setForceUpdateVersion(updateVersions.iosForceUpdateVersion);
 #else
-                PlayerStats.Instance.setUpdateVersion(updateVersions.androidUpdateVersion);
-                PlayerStats.Instance.setForceUpdateVersion(updateVersions.androidForceUpdateVersion);
+            PlayerStats.Instance.setUpdateVersion(updateVersions.androidUpdateVersion);
+            PlayerStats.Instance.setForceUpdateVersion(updateVersions.androidForceUpdateVersion);
 #endif
 
-                PlayerStats.Instance.setFacebookLink(updateVersions.facebookLink);
-                PlayerStats.Instance.setYoutubeLink(updateVersions.youtubeLink);
-                PlayerStats.Instance.setInstagramLink(updateVersions.instagramLink);
-                PlayerStats.Instance.setXLink(updateVersions.xLink);
+            // Only overwrite a link when the server actually sent one. UpdateVersions defaults
+            // these to "", and they are persisted permanently, so applying a partial response
+            // would blank every social button with no way back.
+            setLinkIfPresent(updateVersions.facebookLink, PlayerStats.Instance.setFacebookLink);
+            setLinkIfPresent(updateVersions.youtubeLink, PlayerStats.Instance.setYoutubeLink);
+            setLinkIfPresent(updateVersions.instagramLink, PlayerStats.Instance.setInstagramLink);
+            setLinkIfPresent(updateVersions.xLink, PlayerStats.Instance.setXLink);
 
-                Debug.Log(request.downloadHandler.text);
-                Debug.Log(updateVersions.iosUpdateVersion);
-                ShowUpdateDialog();
-            }
+            Utility.remoteConfigLoaded = true;
+            ShowUpdateDialog();
         }
+    }
+
+    private void setLinkIfPresent(string value, System.Action<string> setter)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            setter(value);
+    }
+
+    private void HideUpdateDialog()
+    {
+        updateDialog.gameObject.SetActive(false);
     }
 
     public void ShowUpdateDialog()
     {
+        if (!Utility.remoteConfigLoaded)
+        {
+            HideUpdateDialog();
+            return;
+        }
+
         int updateVersion = PlayerStats.Instance.getUpdateVersion();
         int forceUpdateVersion = PlayerStats.Instance.getForceUpdateVersion();
         int currentVersion = VersionCode.GetVersionCode();
-        Debug.Log("Current version = " + VersionCode.GetVersionCode());
 
         updateDialog.gameObject.SetActive(updateVersion > currentVersion || forceUpdateVersion > currentVersion);
     }
@@ -128,10 +177,13 @@ public class MainMenu : MonoBehaviour
         int forceUpdateVersion = PlayerStats.Instance.getForceUpdateVersion();
         int currentVersion = VersionCode.GetVersionCode();
 
-        if (forceUpdateVersion > currentVersion)
+        // Quit only for a force-update this session's fetch actually asked for. Without the
+        // remoteConfigLoaded guard a stale cached value quits the game on Cancel - and in the
+        // Editor, where Quit() does nothing, the dialog simply refuses to close.
+        if (Utility.remoteConfigLoaded && forceUpdateVersion > currentVersion)
             Application.Quit();
         else
-            updateDialog.gameObject.SetActive(false);
+            HideUpdateDialog();
     }
 
     public void StartGame()
