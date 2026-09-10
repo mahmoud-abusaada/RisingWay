@@ -24,9 +24,39 @@ Dependency deltas after re-resolution:
 - added `androidx.fragment:1.7.1`, `androidx.lifecycle:lifecycle-process:2.6.2`
 - iOS: `unity-plugin-library.a` → `unity-plugin-library.xcframework`
 
-**The `AD_SERVICES_CONFIG` question from the audit is now closed.** It was half of Google's own
-GMA v8.6.0 workaround, applied twice — once as a `<meta-data>` removal in the app manifest, once
-by rewriting a `<property>` node inside the AAR. Both are obsolete and both are gone.
+**The `AD_SERVICES_CONFIG` question from the audit — twice corrected.** Worth reading as a record
+of getting it wrong in both directions.
+
+An earlier revision of this document claimed both halves of Google's GMA v8.6.0 workaround were
+gone. That was wrong. The workaround was applied twice — once by rewriting a `<property>` node
+inside the AAR, once as a `<meta-data ... tools:node="remove">` directive in
+`Assets/Plugins/Android/AndroidManifest.xml`. Updating the SDK removed only the **first**. The
+manifest directive survived untouched.
+
+On finding it, the conclusion drawn was that it must be stripping Ad Services attribution config
+and therefore costing ad revenue. **That was also wrong**, and it is the more instructive error.
+Testing it rather than reasoning about it:
+
+- All **90** resolved dependency manifests were searched. **None** declares
+  `AD_SERVICES_CONFIG` — not `play-services-ads:25.4.0`, not `play-services-ads-api:25.4.0`.
+- The one apparent match was a stale Gradle transform cache of *this project's own*
+  `unityLibrary` from the previous build, still carrying the directive. Not a Google library.
+- The APK built after removing the directive contains `AD_SERVICES_CONFIG` exactly as often as
+  the one built before it: **zero** times.
+
+So the directive was **inert**. Google stopped shipping that meta-data; there was nothing left
+for the `tools:node="remove"` to act on. No attribution was being lost and no revenue was being
+affected.
+
+**It is still removed, for a different and smaller reason.** A directive that silently deletes a
+meta-data which nothing currently declares is a latent trap: the moment an SDK update or a
+re-added mediation adapter begins shipping `AD_SERVICES_CONFIG`, that line would strip it again
+with no error and no log entry. Removing dead workarounds while their context is still understood
+is cheaper than rediscovering them later.
+
+The `ACCESS_ADSERVICES_AD_ID` / `ACCESS_ADSERVICES_ATTRIBUTION` / `ACCESS_ADSERVICES_TOPICS`
+permissions in the APK come from the ads SDK independently and were never affected by any of
+this.
 
 ### EDM4U 1.2.179 → 1.2.188
 

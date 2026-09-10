@@ -119,3 +119,43 @@ decision, not a revert:
 
 Option 1 is the honest default given nothing references it, but it is a package removal and
 therefore the owner's call.
+
+---
+
+## IF-04 — The APK asks for storage permissions it does not need
+
+**Confirmed** by reading the manifest merger report for the first green build, so the source is
+known rather than guessed:
+
+```
+uses-permission#android.permission.WRITE_EXTERNAL_STORAGE
+  ADDED from [:RisingWayFileProvider:] .../jetified-RisingWayFileProvider/AndroidManifest.xml:7
+uses-permission#android.permission.READ_EXTERNAL_STORAGE
+  IMPLIED ... reason: com.AbuSada.RisingWay_provider requested WRITE_EXTERNAL_STORAGE
+```
+
+So both come from the project's **own** `Assets/Plugins/Android/RisingWayFileProvider.aar`, and
+the READ permission is merely *implied* by the WRITE one. Unity is not the source:
+`ForceSDCardPermission` is `0`, and no manifest in `Assets/` requests either.
+
+**Neither is needed.** A `FileProvider` exists precisely so an app can share a file by granting a
+per-URI permission instead of holding a storage permission. And `WRITE_EXTERNAL_STORAGE` has been
+ignored outright since Android 11 (API 30) — the app targets 36. Meanwhile the screenshot path in
+`ShareManager.cs` writes to `Application.persistentDataPath`, which is internal storage and needs
+no permission at all.
+
+The cost is not functional, it is presentational: two of the scariest-looking permissions on the
+Play listing, for nothing.
+
+**Fix is not a one-liner, which is why it is only recorded here.** The declaration lives inside a
+prebuilt `.aar`, so either the AAR is rebuilt without it, or the app manifest overrides it:
+
+```xml
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
+```
+
+`Assets/Plugins/Android/AndroidManifest.xml` already declares the `tools` namespace, so the
+override would drop straight in. **It should not be done blind**: sharing is a user-facing
+feature, and the removal needs the share flow exercised on a real device — ideally on both a
+modern Android and something near minSdk 26, where the permission still meant something.

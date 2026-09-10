@@ -3,9 +3,28 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.unity3d.player"
     xmlns:tools="http://schemas.android.com/tools">
-	
+
+    <!--
+      P1-05: the AD_SERVICES_CONFIG removal directive that used to live here has been deleted.
+
+        <meta-data tools:node="remove" android:name="android.adservices.AD_SERVICES_CONFIG"/>
+
+      It was half of Google's own workaround for a manifest-merger conflict in Google Mobile Ads
+      v8.6.0. The underlying issue was fixed in the GMA Android SDK 24.0.0; this project resolves
+      play-services-ads 25.4.0, so the workaround is obsolete.
+
+      What removing it did NOT do: restore any meta-data. All 90 resolved dependency manifests
+      were checked and none declares AD_SERVICES_CONFIG - play-services-ads 25.4.0 and
+      play-services-ads-api 25.4.0 included. The directive was inert, and the APK built without
+      it contains the meta-data exactly as often as the APK built with it: zero times.
+
+      It is removed because a directive that silently strips a meta-data nothing currently
+      declares is a trap for later. The moment an SDK update or a re-added mediation adapter
+      starts shipping AD_SERVICES_CONFIG, this line would have deleted it again with no error
+      and no log line. Do not reintroduce it.
+    -->
+
     <application>
-	    <meta-data tools:node="remove" android:name="android.adservices.AD_SERVICES_CONFIG"/>
         <activity android:name="com.unity3d.player.UnityPlayerActivity"
                   android:theme="@style/UnityThemeSelector">
             <intent-filter>
