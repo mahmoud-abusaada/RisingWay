@@ -40,7 +40,18 @@ public static class RisingWayBuilder
         Build(ResolveOutput(DEFAULT_AAB));
     }
 
-    private static void Build(string outputPath)
+    /// <summary>
+    /// Development build: defines DEVELOPMENT_BUILD, which is what gates
+    /// Assets/Scripts/Diagnostics/RenderDiagnostics.cs. A release build strips that class out
+    /// entirely, so use this entry point when the diagnostic needs to run on a device.
+    /// </summary>
+    public static void BuildAndroidApkDev()
+    {
+        EditorUserBuildSettings.buildAppBundle = false;
+        Build(ResolveOutput(DEFAULT_APK), true);
+    }
+
+    private static void Build(string outputPath, bool development = false)
     {
         string[] scenes = EditorBuildSettings.scenes
             .Where(s => s.enabled)
@@ -63,7 +74,8 @@ public static class RisingWayBuilder
             "  minSdk=" + PlayerSettings.Android.minSdkVersion +
             "  scripting=" + PlayerSettings.GetScriptingBackend(NamedBuildTarget.Android) +
             "  architectures=" + PlayerSettings.Android.targetArchitectures +
-            "  appBundle=" + EditorUserBuildSettings.buildAppBundle);
+            "  appBundle=" + EditorUserBuildSettings.buildAppBundle +
+            "  development=" + development);
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {
@@ -71,7 +83,7 @@ public static class RisingWayBuilder
             locationPathName = outputPath,
             target = BuildTarget.Android,
             targetGroup = BuildTargetGroup.Android,
-            options = BuildOptions.None,
+            options = development ? BuildOptions.Development : BuildOptions.None,
         };
 
         BuildReport report;
