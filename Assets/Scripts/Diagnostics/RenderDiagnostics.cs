@@ -103,10 +103,24 @@ public class RenderDiagnostics : MonoBehaviour
         sb.AppendLine("live path parts    : " + pathParent.childCount +
                       "   (reporting up to " + MAX_PARTS_REPORTED + ")");
         sb.AppendLine("");
-        sb.AppendLine("FADE FACTOR is what the shader computes:");
-        sb.AppendLine("    saturate((_FadeEndDistance - dist) / _FadeLength)");
+        sb.AppendLine("ALPHA x is what the shader multiplies surfaceData.alpha by. The two fade");
+        sb.AppendLine("shaders use OPPOSITE formulas, so each line reports which mode it read:");
+        sb.AppendLine("    mode=close (LitFadeWhenClose, what the path uses):");
+        sb.AppendLine("        saturate((dist - _FadeEndDistance) / _FadeLength)  -> clear NEAR camera");
+        sb.AppendLine("    mode=away  (LitFadeWhenAway):");
+        sb.AppendLine("        saturate((_FadeEndDistance - dist) / _FadeLength)  -> clear FAR from camera");
         sb.AppendLine("0.00 means fully transparent - invisible - on any GPU or driver.");
         sb.AppendLine("");
+
+        if (!Utility.gameStarted || !Utility.playerIsInPosition)
+        {
+            sb.AppendLine("*** WARNING: gameStarted=" + Utility.gameStarted +
+                          " playerIsInPosition=" + Utility.playerIsInPosition);
+            sb.AppendLine("*** This is a MENU dump, not gameplay. PathMaker only hands parts the fade");
+            sb.AppendLine("*** material once playerIsInPosition is true, so nothing here is diagnostic.");
+            sb.AppendLine("*** Start a run and let it play - the automatic dump fires by itself.");
+            sb.AppendLine("");
+        }
 
         // One Debug.Log PER PART, not one giant string. logcat truncates a single oversized
         // message, and the first attempt at this was cut off mid-line with unrelated AdMob
