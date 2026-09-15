@@ -1,7 +1,73 @@
 # The path-rendering bug — investigation log
 
-**Status: root cause NOT yet confirmed. Three hypotheses eliminated, one major factual error
-corrected.** This file exists so the eliminated ground is not re-walked.
+**Status: ROOT CAUSE FOUND - see the section below.** The history that follows is kept because
+three hypotheses were eliminated along the way and should not be re-walked.
+
+---
+
+# ROOT CAUSE FOUND (2026-09-15)
+
+**URP 17 strips both custom fade shaders down to ZERO compiled variants.** The build log says it
+outright:
+
+```
+Compiling shader "Universal Render Pipeline/Custom/Lit Fade when Close"
+  Pass "StandardLit" (vp)
+    Target graphics API: gles3
+    Full variant space:         9.216
+    After settings filtering:   9.216
+    After built-in stripping:   288
+    After scriptable stripping: 0        <-- nothing ships
+```
+
+Stock `Universal Render Pipeline/Lit` keeps 28 variants through the same pass. Both
+`Lit Fade when Close` and `Lit Fade when Away` end at 0.
+
+So on device the path parts hold a perfectly valid material pointing at a shader the GPU has
+nothing compiled for, and nothing is drawn. The material is fine; the shader program does not
+exist.
+
+## Why every earlier observation fits
+
+| Observation | Explained by |
+|---|---|
+| Editor renders correctly | The Editor compiles variants on demand; stripping only happens at build |
+| GLES3 **and** Vulkan builds both broken | Variant stripping is API-independent |
+| Diagnostic reported everything healthy | It reads *material* state - alpha, queue, shader name. A missing compiled variant is invisible to it |
+| Shader/materials/camera byte-identical to `pre-unity6` | Nothing in the project changed. URP 17's stripper is far more aggressive than URP 12's |
+| "Make it opaque" would have appeared to fix it | It swaps to a shader that *does* have variants - masking the cause rather than fixing it |
+
+## The trigger
+
+`Assets/UniversalRenderPipelineGlobalSettings.asset`:
+
+```
+m_URPShaderStrippingSetting:
+  m_StripUnusedVariants: 1
+```
+
+URP decides which variants are reachable by analysing materials at build time. It **cannot see a
+shader assigned at runtime**, and `PathMaker.setPartMaterial` does exactly that through
+`MaterialsManager.getFadeMaterial`, which sets `m.shader = fadeShader` during play. URP therefore
+concludes nothing uses these shaders and strips them completely.
+
+This is a behaviour regression from the URP 12 -> 17 upgrade even though no project file changed.
+
+## Fix
+
+**Immediate / proof:** Project Settings > Graphics > URP Global Settings > Shader Stripping >
+untick **Strip Unused Variants**, rebuild, verify on device. Costs build size and build time,
+because it relaxes stripping for every shader.
+
+**Follow-up, once confirmed:** make the two custom shaders URP-17-compliant so they survive
+stripping with the flag back on. They are URP-7-era files (the header still says "This shader
+works with URP 7.1.x and above") missing pragmas URP 17 expects. That restores the size saving.
+
+**Worth deciding separately:** the fade never actually fires. `_FadeEndDistance` is 8, and the
+closest any part came to the camera across two full dumps was **13.22** - the camera sits a fixed
+14.32 behind the ball and nearer parts are destroyed. So every part is fully opaque at all times
+while still paying transparent blending with `_ZWrite=0`. That is also what makes sorting depend
+purely on queue order. Not the bug, but worth revisiting once the path renders again.
 
 Symptom, as reported: *"the path is not showing unless the ball moves, another part shows of the
 path."* Visible on a physical device. Never yet reproduced in the Editor or on an emulator.
