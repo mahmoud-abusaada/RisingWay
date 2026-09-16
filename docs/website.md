@@ -29,14 +29,49 @@ The `.php` extension is meaningless. This is a static file that happens to be na
 `_headers` sets the correct `Content-Type`, and Unity does not care either way since it parses
 `downloadHandler.text`.
 
+## What is in `web/`
+
+`web/` is the deploy folder and holds **only public files** - everything in it is published.
+Internal notes live here in `docs/website.md` for that reason.
+
+| File | Served at | Purpose |
+|---|---|---|
+| `privacy.html` | `https://abusaada.com/privacy` | Privacy policy for Play Console and AdMob |
+| `app-ads.txt` | `https://abusaada.com/app-ads.txt` | AdMob seller authorisation |
+| `rising/version.php` | `https://abusaada.com/rising/version.php` | Remote config (parked) |
+| `_headers` | - | Cloudflare response headers, not served |
+
+Cloudflare Pages serves `privacy.html` at `/privacy` automatically and redirects the `.html` form
+there, so `/privacy` is the canonical URL to give Google.
+
 ## Deploying to Cloudflare Pages
 
-1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → connect this repo
-   (or drag-and-drop the `web/` folder for a one-off upload).
-2. Build command: **none**. Build output directory: **`web`**.
-3. Custom domains → add **`abusaada.com`**. DNS is already at Cloudflare, so this needs no
-   nameserver change.
-4. Verify: `curl https://abusaada.com/rising/version.php` must return the JSON below.
+**Before the first deploy:** `privacy.html` contains `CONTACT_EMAIL_PLACEHOLDER`. Replace it with
+the real address first - a policy with no working contact fails review.
+
+**Direct upload** - no Git connection or command line needed:
+
+1. <https://dash.cloudflare.com> → **Workers & Pages** → **Create** → **Pages** tab →
+   **Upload assets**.
+2. Project name: `abusaada` (any name; it only affects the `*.pages.dev` preview address).
+3. Drag the **contents** of `C:\Work\RisingWay\web` in, then **Deploy site**.
+4. Open the project → **Custom domains** → **Set up a custom domain** → `abusaada.com` →
+   **Activate domain**. The domain's DNS is already on Cloudflare, so no nameserver changes.
+5. Repeat step 4 for `www.abusaada.com` if you want that to work too.
+
+**To update later:** open the project → **Create deployment** → upload the folder again.
+
+**Verify once the domain is active** (activation can take a few minutes):
+
+```bash
+curl -I https://abusaada.com/privacy
+```
+
+```bash
+curl https://abusaada.com/app-ads.txt
+```
+
+The first must return `200`; the second must print the `google.com, pub-...` line.
 
 ## The contract
 
@@ -87,6 +122,6 @@ the contract above — but no response, or a broken one, is now harmless.
 
 ## Still to add
 
-- **A privacy policy page.** Its absence when this domain expired is what got the app delisted.
-  It is not referenced from inside the game — it is a field in the Play Console and App Store
-  Connect listings, so any stable path works once the page exists.
+- **The contact email in `privacy.html`** - the one blocker before first deploy.
+- Nothing else is required for the relaunch. `index.html` is optional; without it the bare domain
+  returns Cloudflare's 404, which Google does not check.
