@@ -14,8 +14,9 @@ Items marked **BLOCKS RELEASE** must be done before the Play Store will accept t
 The consent code is now in the game, but the UMP SDK only **displays** a message you configure
 here. Until one exists, EEA/UK users see no form and **get no ads at all**.
 
-- **Privacy & messaging → European regulations** → Create message → attach the Rising Way app →
-  publish.
+- ✅ **Privacy & messaging → European regulations** — **published and verified.** A debug-EEA run on
+  the Pixel 10 Pro emulator shows the form with "Do not consent" on the first layer; both Consent
+  and Do not consent initialise ads correctly (declining gives Limited Ads, not zero ads).
 - **Privacy & messaging → US state regulations** → Create message → publish. Several US states now
   require an opt-out; the SDK handles it once this exists.
 - You will be asked for a **privacy policy URL** — see 3.1.
@@ -134,6 +135,10 @@ AdMob shows you in 1.3.
 
 Google requires EEA/UK users to be able to change consent from inside the app. The code is ready;
 the button is not, because hand-editing scene YAML to create UI is unsafe.
+
+**The published consent form already promises this button exists** — it tells users to "look for
+a link or button in the app menu to manage or withdraw consent". Shipping without it breaks a
+statement the app itself makes.
 
 1. Open **SampleScene**, select the **Settings** panel.
 2. Duplicate an existing button, rename it **Privacy Options**, set its label.
