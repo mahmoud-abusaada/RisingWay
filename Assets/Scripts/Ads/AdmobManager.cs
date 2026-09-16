@@ -36,6 +36,11 @@ public class AdmobManager : MonoBehaviour
     // Copy that hash in here. Release builds never compile this block.
     private static readonly List<string> UmpDebugDeviceHashedIds = new List<string>()
     {
+        // Pixel_10_Pro emulator (16 KB image). On Android the hash is
+        // MD5(Settings.Secure.ANDROID_ID), uppercased:
+        //   adb shell settings get secure android_id  ->  md5  ->  toupper
+        // It changes if the emulator is wiped.
+        "6ACAB0E60A094B35572CDAAD743A9E81",
     };
 #endif
 
