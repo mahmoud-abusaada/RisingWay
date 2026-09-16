@@ -1,6 +1,7 @@
 # The path-rendering bug — investigation log
 
-**Status: ROOT CAUSE FOUND - see the section below.** The history that follows is kept because
+**Status: FIXED and VERIFIED on a physical device** (Galaxy S20 Ultra, Android 13, Adreno) on
+2026-09-16, commit `0b6602b`. The path renders. The history that follows is kept because
 three hypotheses were eliminated along the way and should not be re-walked.
 
 ---
