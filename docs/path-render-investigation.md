@@ -5,69 +5,82 @@ three hypotheses were eliminated along the way and should not be re-walked.
 
 ---
 
-# ROOT CAUSE FOUND (2026-09-15)
-
-**URP 17 strips both custom fade shaders down to ZERO compiled variants.** The build log says it
-outright:
+# ROOT CAUSE (2026-09-16): a one-word typo in the SubShader tag
 
 ```
-Compiling shader "Universal Render Pipeline/Custom/Lit Fade when Close"
-  Pass "StandardLit" (vp)
-    Target graphics API: gles3
-    Full variant space:         9.216
-    After settings filtering:   9.216
-    After built-in stripping:   288
-    After scriptable stripping: 0        <-- nothing ships
+URP 17 Lit.shader:          "RenderPipeline" = "UniversalPipeline"
+LitFadeWhenClose.shader:    "RenderPipeline" = "UniversalRenderPipeline"     <-- not a valid value
 ```
 
-Stock `Universal Render Pipeline/Lit` keeps 28 variants through the same pass. Both
-`Lit Fade when Close` and `Lit Fade when Away` end at 0.
+`UniversalRenderPipeline` is not a tag value URP recognises. URP 17 silently strips **every
+variant** of a SubShader whose `RenderPipeline` tag it does not recognise, so the shader shipped
+with zero programs and the path rendered as nothing - on device only, because the Editor compiles
+on demand and never strips.
 
-So on device the path parts hold a perfectly valid material pointing at a shader the GPU has
-nothing compiled for, and nothing is drawn. The material is fine; the shader program does not
-exist.
+## The evidence is a clean correlation
 
-## Why every earlier observation fits
+Variant counts from one build, before the fix:
 
-| Observation | Explained by |
-|---|---|
-| Editor renders correctly | The Editor compiles variants on demand; stripping only happens at build |
-| GLES3 **and** Vulkan builds both broken | Variant stripping is API-independent |
-| Diagnostic reported everything healthy | It reads *material* state - alpha, queue, shader name. A missing compiled variant is invisible to it |
-| Shader/materials/camera byte-identical to `pre-unity6` | Nothing in the project changed. URP 17's stripper is far more aggressive than URP 12's |
-| "Make it opaque" would have appeared to fix it | It swaps to a shader that *does* have variants - masking the cause rather than fixing it |
+| Shader | RenderPipeline tag | Variants shipped | Matches |
+|---|---|---|---|
+| `StencilledLit` | `UniversalPipeline` | **16** | stencil worked in the shop |
+| `AlwaysVisible` | `UniversalPipeline` | **8** | worked |
+| `Lit Fade when Close` | `UniversalRenderPipeline` | **0** | path invisible |
+| `Lit Fade when Away` | `UniversalRenderPipeline` | **0** | - |
 
-## The trigger
+Every shader with the correct tag ships. Both with the wrong tag ship nothing. It also matches an
+observation made months earlier and never connected: the shop's stencil effect worked while the
+path did not.
 
-`Assets/UniversalRenderPipelineGlobalSettings.asset`:
+After fixing the tag:
 
 ```
-m_URPShaderStrippingSetting:
-  m_StripUnusedVariants: 1
+                              before -> after
+After settings filtering:      9.216 -> 192
+After built-in stripping:        288 -> 6
+After scriptable stripping:        0 -> 6
 ```
 
-URP decides which variants are reachable by analysing materials at build time. It **cannot see a
-shader assigned at runtime**, and `PathMaker.setPartMaterial` does exactly that through
-`MaterialsManager.getFadeMaterial`, which sets `m.shader = fadeShader` during play. URP therefore
-concludes nothing uses these shaders and strips them completely.
+Note the middle line. Once URP recognises the shader it applies proper settings filtering, so the
+fix costs **six variants**, not a larger build.
 
-This is a behaviour regression from the URP 12 -> 17 upgrade even though no project file changed.
+## The comment that caused it
 
-## Fix
+The URP 7 template these shaders were copied from says:
 
-**Immediate / proof:** Project Settings > Graphics > URP Global Settings > Shader Stripping >
-untick **Strip Unused Variants**, rebuild, verify on device. Costs build size and build time,
-because it relaxes stripping for every shader.
+```
+// In case you want your subshader to only run in LWRP set the tag to
+// "UniversalRenderPipeline"
+```
 
-**Follow-up, once confirmed:** make the two custom shaders URP-17-compliant so they survive
-stripping with the flag back on. They are URP-7-era files (the header still says "This shader
-works with URP 7.1.x and above") missing pragmas URP 17 expects. That restores the size saving.
+That instruction names the wrong value. The comment in each affected shader has been corrected and
+now explains the failure mode.
 
-**Worth deciding separately:** the fade never actually fires. `_FadeEndDistance` is 8, and the
-closest any part came to the camera across two full dumps was **13.22** - the camera sits a fixed
-14.32 behind the ball and nearer parts are destroyed. So every part is fully opaque at all times
-while still paying transparent blending with `_ZWrite=0`. That is also what makes sorting depend
-purely on queue order. Not the bug, but worth revisiting once the path renders again.
+## Four other shaders had the same bug
+
+`LitFadeWhenClose2`, `GlassFade` and `Black Hole Shader` carried the same wrong tag and would have
+been silently stripped in any build. All fixed.
+
+## A wrong turn worth recording
+
+An earlier revision of this document named `m_StripUnusedVariants: 1` as the root cause. That was
+the mechanism, not the cause - the setting was behaving correctly, and it was correct to strip a
+SubShader it could not identify. Turning it off did make the shaders survive, but it also removed
+filtering from everything else:
+
+| Shader | Variants compiled with stripping off | Used by this game |
+|---|---|---|
+| `UberPost` | 9.216 x 2 APIs | post-processing |
+| `TerrainEngine/.../WavingDoublePass` | 13.824 | **no terrain in this game** |
+| `FinalPost` | 1.248 x 2 APIs | post-processing |
+
+That build was heading for 4+ hours and was abandoned. `Always Included Shaders` was also tried
+and does **not** work: it prevents the shader being dropped, but URP's scriptable stripper removes
+the variants independently. Modernising the URP 7-era `#pragma` block was tried too - it changed
+the variant space but still ended at 0, and was reverted once the tag turned out to be the cause.
+
+The lesson: `After scriptable stripping: 0` means URP rejected the *SubShader*, not the variants.
+Compare against a shader that works before assuming the stripping settings are at fault.
 
 Symptom, as reported: *"the path is not showing unless the ball moves, another part shows of the
 path."* Visible on a physical device. Never yet reproduced in the Editor or on an emulator.

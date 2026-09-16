@@ -18,7 +18,7 @@ Shader "Unlit/Black Hole Shader"
     }
     SubShader
     {
-        Tags { "RenderType" = "Transparent" "RenderPipeline" = "UniversalRenderPipeline" "Queue" = "Transparent" }
+        Tags { "RenderType" = "Transparent" "RenderPipeline" = "UniversalPipeline" "Queue" = "Transparent" }
 		Cull Front
 
         Pass
