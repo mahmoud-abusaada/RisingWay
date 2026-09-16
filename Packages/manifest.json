@@ -1,7 +1,6 @@
 {
   "dependencies": {
     "com.natewilliford.unitymobileversioncode": "https://github.com/natewilliford/unity-mobile-version-code.git",
-    "com.unity.adaptiveperformance.samsung.android": "5.0.0-pre.2",
     "com.unity.ai.navigation": "2.0.14",
     "com.unity.collab-proxy": "2.13.5",
     "com.unity.feature.2d": "2.0.2",
@@ -9,7 +8,6 @@
     "com.unity.ide.rider": "3.0.38",
     "com.unity.ide.visualstudio": "2.0.26",
     "com.unity.ide.vscode": "1.2.5",
-    "com.unity.inputsystem": "1.20.0",
     "com.unity.multiplayer.center": "1.0.1",
     "com.unity.purchasing": "5.4.3",
     "com.unity.recorder": "5.1.6",
