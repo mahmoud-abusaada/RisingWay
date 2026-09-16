@@ -18,6 +18,13 @@ public class SettingsMenu : MonoBehaviour
     [SerializeField] private RectTransform tutorialsLeftTapContainer;
     [SerializeField] private RectTransform tutorialsSwipeRightContainer;
     [SerializeField] private RectTransform tutorialsSwipeLeftContainer;
+
+    // P2-07: Google requires users in regulated regions (EEA/UK and some US states) to be able to
+    // change their ad-consent choice from inside the app. This button is only shown to them.
+    // It must be created in the Settings panel in the Editor and its OnClick wired to
+    // OpenPrivacyOptions(). Left unassigned, the menu works exactly as before.
+    [SerializeField] private Button privacyOptionsButton;
+
     private MenusController menusController;
     private PlayerStats playerStats;
     private MaterialsManager materialsManager;
@@ -62,6 +69,14 @@ public class SettingsMenu : MonoBehaviour
         tutorialsToggle.isOn = PlayerStats.Instance.isTutorialsOn();
         stayInSpaceToggle.isOn = PlayerStats.Instance.isStayInSpaceOn();
         emissionToggle.isOn = PlayerStats.Instance.isEmissionOn();
+
+        // Re-evaluated every time the menu opens: the requirement is only known once UMP has
+        // answered, which can be after the menu was first built.
+        if (privacyOptionsButton != null)
+        {
+            privacyOptionsButton.gameObject.SetActive(
+                AdmobManager.Instance != null && AdmobManager.Instance.IsPrivacyOptionsRequired);
+        }
 
         GamePlayMode selectedGamePlayMode = PlayerStats.Instance.getGamePlayMode();
         switch (selectedGamePlayMode)
@@ -121,6 +136,14 @@ public class SettingsMenu : MonoBehaviour
             tutorialsSwipeLeftContainer.GetComponent<Animation>().Stop();
             yield return new WaitForSecondsRealtime(0.3f);
         }
+    }
+
+    public void OpenPrivacyOptions()
+    {
+        if (!MultiClickHandler.Instance.CanClick()) return;
+        if (AdmobManager.Instance == null) return;
+
+        AdmobManager.Instance.ShowPrivacyOptionsForm();
     }
 
     public void Back()
