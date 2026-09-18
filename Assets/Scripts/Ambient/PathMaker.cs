@@ -47,11 +47,35 @@ public class PathMaker : MonoBehaviour
     private int turnsSpawned = 0;
     private int spawnedSlidesForTutorials = 0;
 
+    // Turn patterns unlock in tiers as the score grows (unlockPatternsUpTo). Two set pieces sit
+    // alongside the land patterns: a spiral - four turns the same way, winding the path up around
+    // itself - and short climbs, a few legs in a row that go straight from the curve up into the
+    // curve out, for a quicker rhythm of turns.
+    public const int TOP_PATTERN_TIER = 5;
+    private const int SPIRAL_TURNS = 4;
+    private const int SHORT_CLIMB_LEGS = 3;
+    private int patternTier;
+    private bool spiralsUnlocked, shortClimbsUnlocked;
+    private int spiralTurnsLeft, shortClimbsLeft;
+    private Parts spiralTurn;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    // Development builds: with a file called "try-patterns" in the game's files folder
+    // (adb shell touch /sdcard/Android/data/com.AbuSada.RisingWay/files/try-patterns) every run
+    // has every pattern from the start, to try them without playing up to a score of 500.
+    // MovementProbe sets it with -probeAllPatterns.
+    public static bool PreviewAllPatterns;
+#endif
+
     void Awake()
     {
         partsPool = FindObjectOfType<PartsPool>();
         playerStats = PlayerStats.Instance;
         scoreManager = FindObjectOfType<ScoreManager>();
+#if DEVELOPMENT_BUILD && !UNITY_EDITOR
+        PreviewAllPatterns = System.IO.File.Exists(System.IO.Path.Combine(Application.persistentDataPath, "try-patterns"));
+        if (PreviewAllPatterns)
+            Debug.Log("[PathMaker] try-patterns: every turn pattern from the start of each run");
+#endif
         startGroundCoroutine = spawnStartBlocks();
 
         // landPatterns.Add(landPatterns.Count, new ArrayList { Parts.LandRight });
@@ -107,6 +131,9 @@ public class PathMaker : MonoBehaviour
 
         landPatterns.Add("R", new ArrayList { Parts.LandRight });
         landPatterns.Add("L", new ArrayList { Parts.LandLeft });
+        patternTier = 0;
+        spiralsUnlocked = shortClimbsUnlocked = false;
+        spiralTurnsLeft = shortClimbsLeft = 0;
 
         currentGamePathParentName = playerStats.getTimesPlayed().ToString();
         currentGamePathParent = new GameObject(currentGamePathParentName).transform;
@@ -173,15 +200,15 @@ public class PathMaker : MonoBehaviour
         }
     }
 
-    public void createStartGround()
+    public void createStartGround(float secondsBetweenParts = 0.15f)
     {
         if (startGroundCoroutine != null)
             StopCoroutine(startGroundCoroutine);
-        startGroundCoroutine = spawnStartBlocks();
+        startGroundCoroutine = spawnStartBlocks(secondsBetweenParts);
         StartCoroutine(startGroundCoroutine);
     }
 
-    IEnumerator spawnStartBlocks()
+    IEnumerator spawnStartBlocks(float secondsBetweenParts = 0.15f)
     {
         for (spawnedStraightCount = 0; spawnedStraightCount < startBlocksCount; spawnedStraightCount++)
         {
@@ -198,7 +225,7 @@ public class PathMaker : MonoBehaviour
 
             updatePartsRenderQueue();
 
-            yield return new WaitForSeconds(0.15f);
+            yield return new WaitForSeconds(secondsBetweenParts);
         }
     }
 
@@ -224,14 +251,7 @@ public class PathMaker : MonoBehaviour
             if (isCurveSt(lastSpawnedPart) || (pickedLandsPattern != null && pickedLandsPattern.Count > 0))
             {
                 if (pickedLandsPattern == null || pickedLandsPattern.Count == 0)
-                {
-                    List<string> keys = new List<string>();
-                    foreach (DictionaryEntry entry in landPatterns)
-                    {
-                        keys.Add(entry.Key as string);
-                    }
-                    pickedLandsPattern = new Queue((ArrayList)landPatterns[keys[Random.Range(0, keys.Count)]]);
-                }
+                    pickedLandsPattern = pickLandPattern();
 
                 spawnPart((Parts)pickedLandsPattern.Dequeue());
                 if (PlayerStats.Instance.isTutorialsOn())
@@ -245,7 +265,13 @@ public class PathMaker : MonoBehaviour
                 }
                 else if (isCurveUp(lastSpawnedPart))
                 {
-                    if (allowCurveStAfterCurveUp)
+                    if (shortClimbsLeft > 0)
+                    {
+                        // A short climb: straight from the curve up into the curve out.
+                        shortClimbsLeft--;
+                        spawnPart(Parts.CurveStraight);
+                    }
+                    else if (allowCurveStAfterCurveUp)
                         pickPart(Parts.CurveStraight, Parts.Slide);
                     else
                         spawnPart(Parts.Slide);
@@ -267,6 +293,87 @@ public class PathMaker : MonoBehaviour
                     }
                 }
             }
+        }
+    }
+
+    // The next turn, or turns: one of the unlocked land patterns, picked at random as before - or
+    // the next turn of a spiral.
+    private Queue pickLandPattern()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (PreviewAllPatterns && patternTier < TOP_PATTERN_TIER && !playerStats.isTutorialsOn())
+            unlockPatternsUpTo(TOP_PATTERN_TIER);
+#endif
+        bool tutorials = playerStats.isTutorialsOn();
+        if (spiralTurnsLeft > 0)
+        {
+            spiralTurnsLeft--;
+            return new Queue(new ArrayList { spiralTurn });
+        }
+        if (spiralsUnlocked && !tutorials && Random.Range(0, 8) == 0)
+        {
+            spiralTurn = Random.Range(0, 2) == 0 ? Parts.LandRight : Parts.LandLeft;
+            spiralTurnsLeft = SPIRAL_TURNS - 1;
+            // Not with short climbs: the loops would stack only 12 units apart.
+            shortClimbsLeft = 0;
+            return new Queue(new ArrayList { spiralTurn });
+        }
+        if (shortClimbsUnlocked && !tutorials && shortClimbsLeft == 0 && Random.Range(0, 8) == 0)
+            shortClimbsLeft = SHORT_CLIMB_LEGS;
+
+        List<string> keys = new List<string>();
+        foreach (DictionaryEntry entry in landPatterns)
+            keys.Add(entry.Key as string);
+        return new Queue((ArrayList)landPatterns[keys[Random.Range(0, keys.Count)]]);
+    }
+
+    /// <summary>
+    /// Adds the turn patterns of every tier up to <paramref name="tier"/> (ScoreManager: score over
+    /// 110, 200, 300, 400, 500). R and L are turn parts, S a flat straight part. The ones marked
+    /// "new" came with the September 2026 playtest; the rest are the game's original ladder.
+    /// </summary>
+    public void unlockPatternsUpTo(int tier)
+    {
+        while (patternTier < tier)
+        {
+            patternTier++;
+            Debug.Log("Path maker update " + patternTier);
+            switch (patternTier)
+            {
+                case 1:
+                    addPatterns("R-S-R", "L-S-L", "R-S-L", "L-S-R");
+                    addPatterns("S-S-R", "S-S-L"); // new: a flat run, then the turn
+                    shortClimbsUnlocked = true;    // new
+                    break;
+                case 2:
+                    addPatterns("R-S-R-S-R", "L-S-L-S-L", "R-S-R-S-L", "L-S-L-S-R");
+                    addPatterns("R-S-S-L", "L-S-S-R"); // new: a wide sidestep
+                    spiralsUnlocked = true;            // new
+                    break;
+                case 3:
+                    foreach (string retired in new[] { "R-S-R", "L-S-L", "R-S-L", "L-S-R" })
+                        landPatterns.Remove(retired);
+                    addPatterns("R-R", "L-L", "R-L", "L-R");
+                    break;
+                case 4:
+                    addPatterns("R-R-S-R", "L-L-S-L");
+                    break;
+                case 5:
+                    addPatterns("R-R-L", "L-L-R", "R-L-R", "L-R-L");
+                    addPatterns("R-L-R-L", "L-R-L-R"); // new: a long slalom
+                    break;
+            }
+        }
+    }
+
+    private void addPatterns(params string[] names)
+    {
+        foreach (string name in names)
+        {
+            ArrayList parts = new ArrayList();
+            foreach (string p in name.Split('-'))
+                parts.Add(p == "R" ? Parts.LandRight : p == "L" ? Parts.LandLeft : Parts.LandStraight);
+            landPatterns[name] = parts;
         }
     }
 
@@ -391,32 +498,34 @@ public class PathMaker : MonoBehaviour
         setPartPosition(part);
     }
 
-    int index = 1;
-    int notDestroyingIndex = 0;
-    bool isFade = true;
+    // Draw order for the path: the part furthest ahead first. The part under the ball and the one
+    // before it keep the path material's own settings, which do not write depth - that is what
+    // lets a planet's moons show through the track (SolarSystem draws them at 2400, after every
+    // part). Drawn nearest-first, as this used to be, the parts ahead came after them and nothing
+    // could hide them: the next part's edges showed over the part the ball was on. Drawn
+    // furthest-first, the parts ahead write their depth before the nearer parts are drawn over them.
+    // Each part gets three queues, as before: its end blocks, then its pick-up, then the part.
     public void updatePartsRenderQueue()
     {
         fixedUpdatesCount = 0;
-        index = 1;
-        notDestroyingIndex = 0;
-        isFade = true;
+        int count = currentGamePathParent.childCount;
+        int position = 0;
+        int notDestroyingIndex = 0;
         foreach (Transform part in currentGamePathParent)
         {
             if (part.name != Utility.Constants.DESTROYING_OBJECT_NAME)
                 notDestroyingIndex++;
 
-            if (notDestroyingIndex == 0 || notDestroyingIndex == 1 || notDestroyingIndex == 2 || !Utility.playerIsInPosition)
-                isFade = false;
-            else if (notDestroyingIndex > 2)
-                isFade = true;
+            bool isFade = notDestroyingIndex > 2 && Utility.playerIsInPosition;
+            int queue = 2001 + 3 * (count - 1 - position);
 
-            setPartMaterial(part.Find("Mesh"), isFade, 2000 + index + 1);
-            setPartMaterial(part.Find("PartStartBlock"), isFade, 2000 + index - 1);
-            setPartMaterial(part.Find("PartEndBlock"), isFade, 2000 + index - 1);
+            setPartMaterial(part.Find("Mesh"), isFade, queue + 2);
+            setPartMaterial(part.Find("PartStartBlock"), isFade, queue);
+            setPartMaterial(part.Find("PartEndBlock"), isFade, queue);
 
             if (part.Find("PickUp") != null)
-                part.Find("PickUp").GetComponentInChildren<Renderer>().material.renderQueue = 2000 + index;
-            index++;
+                part.Find("PickUp").GetComponentInChildren<Renderer>().material.renderQueue = queue + 1;
+            position++;
         }
     }
 
@@ -665,6 +774,27 @@ public class PathMaker : MonoBehaviour
         yield return null;
     }
 
+    /// <summary>
+    /// Whether the first <paramref name="count"/> parts of the current path have finished
+    /// dropping into place (MoveDown removes itself when its part lands).
+    /// </summary>
+    public bool firstPartsHaveLanded(int count)
+    {
+        if (currentGamePathParent == null)
+            return false;
+        int landed = 0;
+        foreach (Transform part in currentGamePathParent)
+        {
+            if (part.name == Utility.Constants.DESTROYING_OBJECT_NAME)
+                continue;
+            if (part.GetComponent<MoveDown>() != null)
+                return false;
+            if (++landed >= count)
+                return true;
+        }
+        return false; // not that many spawned yet
+    }
+
     public void startSpawningPathAfterChance(Vector3 startPosition, Directions direction)
     {
         lastSpawnedPartPosition = startPosition;
@@ -672,7 +802,9 @@ public class PathMaker : MonoBehaviour
         lastSpawnedPart = null;
         directions.Clear();
         pickedLandsPattern = null;
-        createStartGround();
+        // Faster than at the start of a run: the revived ball waits for these parts to land
+        // (PlayerMovement.releaseWhenPathHasLanded), so this is how long the player waits.
+        createStartGround(0.08f);
     }
 
     public void boltPickedUp()

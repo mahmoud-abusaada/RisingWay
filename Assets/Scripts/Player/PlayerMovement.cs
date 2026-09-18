@@ -55,10 +55,18 @@ public class PlayerMovement : MonoBehaviour
     // Visual spin cap. Physics used to clamp spin to 7 rad/s (the project's default max angular
     // speed), and that is the look the game shipped with, so it is kept.
     private const float MAX_VISUAL_SPIN = 7f;
+    // Radius of the probe that checks there is track under the ball's centre: small, so the ball
+    // falls off an edge once its centre is past it, as a real ball does; not zero, so it cannot
+    // slip between two parts at a seam.
+    private const float SUPPORT_PROBE_RADIUS = 0.04f;
 
     private float ballRadius = 0.25f;
     private int groundMask;
     private Transform pendingAutoTurnPart;
+    // The part under the ball's centre while it is on the track, and the part the ball last
+    // turned on by itself (auto-pilot, bolt, one-tap), so that one part never turns it twice.
+    private Transform groundPart;
+    private Transform partTurnedOn;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     // Set by MovementProbe: log lost ground and unusual turns.
     public static bool DebugMovement;
@@ -133,6 +141,7 @@ public class PlayerMovement : MonoBehaviour
     {
         stopInterpolation();
         pendingAutoTurnPart = null;
+        groundPart = partTurnedOn = null;
         drivenOnTrack = false;
         myRB.isKinematic = true;
         transform.position = previewPosition;
@@ -214,6 +223,7 @@ public class PlayerMovement : MonoBehaviour
     {
         stopInterpolation();
         pendingAutoTurnPart = null;
+        groundPart = partTurnedOn = null;
         drivenOnTrack = false;
         Utility.spawningAfterChance = true;
         myRB.isKinematic = false;
@@ -232,12 +242,32 @@ public class PlayerMovement : MonoBehaviour
             pathMaker.startSpawningPathAfterChance(new Vector3(cameraController.transform.position.x, cameraController.transform.position.y - 0.6f, cameraController.transform.position.z), direction);
             moveToPosition.MoveTransform(transform.position, cameraController.transform.position, 1, true, () =>
             {
-                Utility.camFollowPlayer = true;
-                Utility.spawningAfterChance = false;
-                myRB.useGravity = true;
-                transform.position = cameraController.transform.position;
+                StartCoroutine(releaseWhenPathHasLanded(cameraController.transform.position));
             });
         });
+    }
+
+    // After a revive the ball waits where it is until the new path under and ahead of it has
+    // dropped into place. It restarts at the speed it had when it fell, and at speed it reached
+    // parts that were still dropping - and fell again straight after being revived.
+    private IEnumerator releaseWhenPathHasLanded(Vector3 holdAt)
+    {
+        while (!pathMaker.firstPartsHaveLanded(pathMaker.startBlocksCount))
+        {
+            // The run was left meanwhile (Utility.resetFlags): nothing to release.
+            if (!Utility.gameStarted || !Utility.spawningAfterChance)
+                yield break;
+            // Hold still: gravity is off, but a part landing on the ball pushes it.
+            transform.position = holdAt;
+            myRB.linearVelocity = Vector3.zero;
+            myRB.angularVelocity = Vector3.zero;
+            yield return new WaitForFixedUpdate();
+        }
+
+        Utility.camFollowPlayer = true;
+        Utility.spawningAfterChance = false;
+        myRB.useGravity = true;
+        transform.position = holdAt;
     }
 
     public void turnRight()
@@ -288,6 +318,24 @@ public class PlayerMovement : MonoBehaviour
 
     public void autoTurn()
     {
+        // One-tap: when the ball is on a turn part, that part decides. The direction the parts'
+        // Destroyer triggers leave in pathMaker.nextDirection was missed when the ball ran near a
+        // part's edge (the triggers are smaller than the parts, so that two turn parts side by side
+        // cannot both fire), and then the ball turned the wrong way or not at all.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement)
+            Debug.Log("[Tap] on " + (groundPart != null ? groundPart.tag + " " + groundPart.name : "no part") +
+                      (groundPart != null && groundPart == partTurnedOn ? " (already turned here, ignored)" : "") +
+                      " next=" + (pathMaker.nextDirection.HasValue ? pathMaker.nextDirection.Value.nextDistination.ToString() : "null") +
+                      " ball " + myRB.position.ToString("F2") + " heading " + direction);
+#endif
+        if (groundPart != null && isTurnPart(groundPart))
+        {
+            if (groundPart != partTurnedOn)
+                turnForPart(groundPart);
+            return;
+        }
+
         if (pathMaker.nextDirection == null)
             return;
 
@@ -335,6 +383,7 @@ public class PlayerMovement : MonoBehaviour
 
         // Keep the shared queue in step: manual turns and the tutorial read it.
         pathMaker.nextDirection = null;
+        partTurnedOn = part;
         if (left)
             turnLeft();
         else
@@ -479,14 +528,17 @@ public class PlayerMovement : MonoBehaviour
 
     // The height at which the ball's centre rests on the track at horizontal position `at`.
     // A sphere cast with the ball's own radius touches exactly where the ball would, whatever the
-    // shape underneath - flat, ramp, the start or top of a ramp, or the edge of a part.
+    // shape underneath - flat, ramp, the start or top of a ramp. The ball only counts as on the
+    // track while there is track under its centre (supportUnderCentre).
     private bool findRestHeight(Vector3 at, float currentY, float horizontalStep, out float restY, out Vector3 normal)
     {
+        groundPart = null;
         float maxClimb = horizontalStep * MAX_SLOPE_PER_STEP;
         float maxDrop = maxClimb + GROUND_SNAP_DISTANCE;
 
         Vector3 origin = new Vector3(at.x, currentY + GROUND_PROBE_LIFT, at.z);
         RaycastHit hit;
+        bool overTheEdge = false;
         if (Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, GROUND_PROBE_LIFT + maxDrop,
                                groundMask, QueryTriggerInteraction.Ignore)
             && hit.normal.y >= MIN_GROUND_NORMAL_Y)
@@ -494,13 +546,18 @@ public class PlayerMovement : MonoBehaviour
             restY = origin.y - hit.distance;
             normal = hit.normal;
             if (restY - currentY <= maxClimb + 0.01f)
-                return true;
+            {
+                if (supportUnderCentre(origin, restY))
+                    return true;
+                overTheEdge = true;
+            }
         }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (DebugMovement)
         {
             bool any = Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, 5f, groundMask, QueryTriggerInteraction.Ignore);
-            Debug.Log("[Ground] lost at " + at.ToString("F3") + " currentY=" + currentY.ToString("F3") + " maxClimb=" + maxClimb.ToString("F3") +
+            Debug.Log("[Ground] lost at " + at.ToString("F3") + (overTheEdge ? " (centre past the edge)" : "") +
+                      " currentY=" + currentY.ToString("F3") + " maxClimb=" + maxClimb.ToString("F3") +
                       " maxDrop=" + maxDrop.ToString("F3") + " castHit=" + any + (any ? " dist=" + hit.distance.ToString("F3") + " restY=" + (origin.y - hit.distance).ToString("F3") +
                       " normal=" + hit.normal.ToString("F2") + " collider=" + hit.collider.name + "/" + (hit.collider.transform.parent != null ? hit.collider.transform.parent.name : "-") : ""));
         }
@@ -509,5 +566,29 @@ public class PlayerMovement : MonoBehaviour
         restY = currentY;
         normal = Vector3.up;
         return false;
+    }
+
+    // Whether there is track under the ball's centre, and which part it is. The sphere cast in
+    // findRestHeight also touches the edge of a part while the ball hangs over it: on its own it
+    // let the ball ride along an edge in the air, centre off the track, instead of falling off.
+    private bool supportUnderCentre(Vector3 origin, float restY)
+    {
+        // The track under the centre is at most about 1.3 radii below it, on the steepest ramp;
+        // 1.5 leaves room for the curved pieces.
+        float reach = origin.y - (restY - ballRadius * 1.5f);
+        RaycastHit support;
+        if (!Physics.SphereCast(origin, SUPPORT_PROBE_RADIUS, Vector3.down, out support, reach,
+                                groundMask, QueryTriggerInteraction.Ignore))
+            return false;
+
+        // Each part is one kinematic Rigidbody with its colliders below it.
+        Collider c = support.collider;
+        groundPart = c.attachedRigidbody != null ? c.attachedRigidbody.transform : c.transform.parent;
+        return true;
+    }
+
+    private static bool isTurnPart(Transform part)
+    {
+        return part.CompareTag("LandLeft") || part.CompareTag("LandRight");
     }
 }

@@ -19,7 +19,6 @@ public class ScoreManager : MonoBehaviour
     private int pathUpdateScore3 = 300;
     private int pathUpdateScore4 = 400;
     private int pathUpdateScore5 = 500;
-    private int pathUpdateScore6 = 600;
 
     public void initScoreManager()
     {
@@ -120,51 +119,17 @@ public class ScoreManager : MonoBehaviour
         if (!Utility.boltIsOn && !PlayerStats.Instance.isTutorialsOn())
             playerMovement.speed = currentPlayerSpeed;
 
-        if (score > pathUpdateScore1 && score < pathUpdateScore2 && !pathMaker.landPatterns.Contains("R-S-R"))
-        {
-            Debug.Log("Path maker update 1");
-            pathMaker.landPatterns.Add("R-S-R", new ArrayList { Parts.LandRight, Parts.LandStraight, Parts.LandRight });
-            pathMaker.landPatterns.Add("L-S-L", new ArrayList { Parts.LandLeft, Parts.LandStraight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("R-S-L", new ArrayList { Parts.LandRight, Parts.LandStraight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("L-S-R", new ArrayList { Parts.LandLeft, Parts.LandStraight, Parts.LandRight });
-        }
-        else if (score > pathUpdateScore2 && score < pathUpdateScore3 && !pathMaker.landPatterns.Contains("R-S-R-S-R"))
-        {
-            Debug.Log("Path maker update 2");
-            pathMaker.landPatterns.Add("R-S-R-S-R", new ArrayList { Parts.LandRight, Parts.LandStraight, Parts.LandRight, Parts.LandStraight, Parts.LandRight });
-            pathMaker.landPatterns.Add("L-S-L-S-L", new ArrayList { Parts.LandLeft, Parts.LandStraight, Parts.LandLeft, Parts.LandStraight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("R-S-R-S-L", new ArrayList { Parts.LandRight, Parts.LandStraight, Parts.LandRight, Parts.LandStraight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("L-S-L-S-R", new ArrayList { Parts.LandLeft, Parts.LandStraight, Parts.LandLeft, Parts.LandStraight, Parts.LandRight });
-        }
-        else if (score > pathUpdateScore3 && score < pathUpdateScore4 && !pathMaker.landPatterns.Contains("R-R"))
-        {
-            Debug.Log("Path maker update 3");
-            pathMaker.landPatterns.Remove("R-S-R");
-            pathMaker.landPatterns.Remove("L-S-L");
-            pathMaker.landPatterns.Remove("R-S-L");
-            pathMaker.landPatterns.Remove("L-S-R");
-            pathMaker.landPatterns.Add("R-R", new ArrayList { Parts.LandRight, Parts.LandRight });
-            pathMaker.landPatterns.Add("L-L", new ArrayList { Parts.LandLeft, Parts.LandLeft });
-            pathMaker.landPatterns.Add("R-L", new ArrayList { Parts.LandRight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("L-R", new ArrayList { Parts.LandLeft, Parts.LandRight });
-        }
-        else if (score > pathUpdateScore4 && score < pathUpdateScore5 && !pathMaker.landPatterns.Contains("R-R-S-R"))
-        {
-            Debug.Log("Path maker update 4");
-            pathMaker.landPatterns.Add("R-R-S-R", new ArrayList { Parts.LandRight, Parts.LandRight, Parts.LandStraight, Parts.LandRight });
-            pathMaker.landPatterns.Add("L-L-S-L", new ArrayList { Parts.LandLeft, Parts.LandLeft, Parts.LandStraight, Parts.LandLeft });
-        }
-        else if (score > pathUpdateScore5 && score < pathUpdateScore6 && !pathMaker.landPatterns.Contains("R-R-L"))
-        {
-            Debug.Log("Path maker update 5");
-            // pathMaker.landPatterns.Remove("R-S-R-S-R");
-            // pathMaker.landPatterns.Remove("L-S-L-S-L");
-            // pathMaker.landPatterns.Remove("R-S-R-S-L");
-            // pathMaker.landPatterns.Remove("L-S-L-S-R");
-            pathMaker.landPatterns.Add("R-R-L", new ArrayList { Parts.LandRight, Parts.LandRight, Parts.LandLeft });
-            pathMaker.landPatterns.Add("L-L-R", new ArrayList { Parts.LandLeft, Parts.LandLeft, Parts.LandRight });
-            pathMaker.landPatterns.Add("R-L-R", new ArrayList { Parts.LandRight, Parts.LandLeft, Parts.LandRight });
-            pathMaker.landPatterns.Add("L-R-L", new ArrayList { Parts.LandLeft, Parts.LandRight, Parts.LandLeft });
-        }
+        // The turn patterns themselves are listed in PathMaker.unlockPatternsUpTo.
+        pathMaker.unlockPatternsUpTo(patternTierFor(score));
+    }
+
+    private int patternTierFor(int score)
+    {
+        if (score > pathUpdateScore5) return 5;
+        if (score > pathUpdateScore4) return 4;
+        if (score > pathUpdateScore3) return 3;
+        if (score > pathUpdateScore2) return 2;
+        if (score > pathUpdateScore1) return 1;
+        return 0;
     }
 }

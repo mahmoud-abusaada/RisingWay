@@ -70,6 +70,165 @@ public class MovementProbe : MonoBehaviour
     private static readonly FieldInfo TimeScaleField =
         typeof(PickUpsManager).GetField("myTimeScale", BindingFlags.NonPublic | BindingFlags.Instance);
     private float startedAt;
+    private Vector3 turnPoint;
+
+    // -probeEdge: a few units into a leg, push the ball sideways a little every step until it stops
+    // being driven on the track, and report how far past the part's edge its centre was then.
+    private bool edgeTest, edgePushing;
+    private float edgeCentre, edgeHalfWidth;
+    private const float EDGE_PUSH_PER_STEP = 0.01f;
+    private static readonly FieldInfo DrivenField =
+        typeof(PlayerMovement).GetField("drivenOnTrack", BindingFlags.NonPublic | BindingFlags.Static);
+
+    // -probeRevive: a few turns in, give the ball a chance and knock it off the track. The revive
+    // must put it back only on a path that has landed, and it must not fall again.
+    private bool reviveTest, reviveUnderway, reviveFallSeen, revived;
+    private int turnsAtRevive;
+    private float knockedOffAt;
+    private const int TURNS_AFTER_REVIVE = 15;
+
+    // -probeOneTap: auto-pilot off; tap (autoTurn, the one-tap control) near each turn part's
+    // centre, a little early or late like a player, and tap a second time straight after, which
+    // must not turn the ball again.
+    private bool oneTap;
+    private Transform tappedFor;
+    private float tapAt;
+    private int secondTapIn;
+
+    private static Vector3 Forward(Directions d)
+    {
+        switch (d)
+        {
+            case Directions.East: return Vector3.right;
+            case Directions.South: return Vector3.back;
+            case Directions.West: return Vector3.left;
+            default: return Vector3.forward;
+        }
+    }
+
+    private void SetCross(float value)
+    {
+        Vector3 p = body.position;
+        if (player.direction == Directions.North || player.direction == Directions.South)
+            p.x = value;
+        else
+            p.z = value;
+        body.position = p;
+    }
+
+    private float PastTheEdge()
+    {
+        return Mathf.Abs(CrossAxis(player.direction, body.position) - edgeCentre) - edgeHalfWidth;
+    }
+
+    // True while the probe should not measure this step.
+    private bool EdgeStep()
+    {
+        if (!edgePushing)
+        {
+            Vector3 p = body.position;
+            if (!haveSegment || turnErrors.Count < 2 || new Vector2(p.x - turnPoint.x, p.z - turnPoint.z).magnitude < 3f)
+                return false;
+            RaycastHit under;
+            int notPlayer = Physics.DefaultRaycastLayers & ~(1 << player.gameObject.layer);
+            if (!Physics.Raycast(p, Vector3.down, out under, 2f, notPlayer, QueryTriggerInteraction.Ignore))
+                return false;
+            Bounds b = under.collider.bounds;
+            edgeCentre = CrossAxis(player.direction, b.center);
+            edgeHalfWidth = CrossAxis(player.direction, b.extents);
+            SetCross(edgeCentre + edgeHalfWidth - 0.1f);
+            edgePushing = true;
+            Debug.Log(TAG + "edge test on " + PartLabel(under.collider) + ": half width " + edgeHalfWidth.ToString("F3") +
+                      ", pushing outwards " + EDGE_PUSH_PER_STEP + " per step");
+            return true;
+        }
+
+        if (!(bool)DrivenField.GetValue(null))
+        {
+            Debug.Log(TAG + "EDGE: left the track with its centre " + PastTheEdge().ToString("F3") +
+                      " past the part's edge (ball radius " + ballRadius + ")");
+            edgeTest = false; // record the fall as usual from here
+            return false;
+        }
+        if (player.direction != lastDirection)
+        {
+            Debug.Log(TAG + "EDGE: reached a turn still on the track, " + PastTheEdge().ToString("F3") + " past the edge; trying the next leg");
+            edgePushing = false;
+            return false;
+        }
+        SetCross(CrossAxis(player.direction, body.position) +
+                 Mathf.Sign(CrossAxis(player.direction, body.position) - edgeCentre) * EDGE_PUSH_PER_STEP);
+        return true;
+    }
+
+    private bool ReviveStep()
+    {
+        if (reviveUnderway)
+        {
+            if (!Utility.camFollowPlayer || Utility.spawningAfterChance)
+            {
+                reviveFallSeen = true;
+                return true; // falling, flying back up, or waiting for the path to land
+            }
+            if (!reviveFallSeen)
+            {
+                if (Time.time - knockedOffAt > 5f)
+                    Finish("the knock-off was never noticed as a fall");
+                return true;
+            }
+            reviveUnderway = false;
+            revived = true;
+            turnsAtRevive = turnErrors.Count;
+            PathMaker pm = FindAnyObjectByType<PathMaker>();
+            Debug.Log(TAG + "REVIVE: back on the track " + (Time.time - knockedOffAt).ToString("F2") +
+                      "s after being knocked off, speed " + player.speed.ToString("F1") + ", first " + pm.startBlocksCount +
+                      " parts landed: " + pm.firstPartsHaveLanded(pm.startBlocksCount));
+            haveSegment = false; // measure afresh from here
+            lastDirection = player.direction;
+            lastStepPos = body.position;
+            return true;
+        }
+        if (revived)
+        {
+            if (turnErrors.Count - turnsAtRevive >= TURNS_AFTER_REVIVE)
+                Finish(TURNS_AFTER_REVIVE + " turns after the revive");
+            return false;
+        }
+        Vector3 q = body.position;
+        if (turnErrors.Count >= 3 && haveSegment && new Vector2(q.x - turnPoint.x, q.z - turnPoint.z).magnitude >= 4.5f)
+        {
+            Utility.chanceIsOn = true;
+            Vector3 f = Forward(player.direction);
+            body.position += new Vector3(f.z, 0, -f.x) * 6f + Vector3.down * 2f; // well clear of any track
+            knockedOffAt = Time.time;
+            reviveUnderway = true;
+            Debug.Log(TAG + "REVIVE: knocked the ball off with a chance active, at speed " + player.speed.ToString("F1"));
+            return true;
+        }
+        return false;
+    }
+
+    private void OneTapStep()
+    {
+        if (secondTapIn > 0 && --secondTapIn == 0)
+            player.autoTurn();
+
+        Vector3 p = body.position;
+        Transform part = NearestTurnPart(p);
+        if (part == null || part == tappedFor)
+            return;
+        Vector3 f = Forward(player.direction);
+        float ahead = (part.position.x - p.x) * f.x + (part.position.z - p.z) * f.z;
+        if (ahead > tapAt)
+            return;
+        tappedFor = part;
+        player.autoTurn();
+        // One step later: still on the turn part, so it tests "the same part never turns the
+        // ball twice". A tap after the ball has left the part is a late tap, which rightly
+        // turns it off the track.
+        secondTapIn = 1;
+        tapAt = UnityEngine.Random.Range(-0.2f, 0.2f); // the next tap a little early or late
+    }
 
     private static string Arg(string name)
     {
@@ -103,10 +262,15 @@ public class MovementProbe : MonoBehaviour
         int.TryParse(Arg("-probeTurns") ?? "40", out turnsWanted);
         Time.captureDeltaTime = 1f / fps;
 
+        edgeTest = Arg("-probeEdge") != null;
+        reviveTest = Arg("-probeRevive") != null;
+        oneTap = Arg("-probeOneTap") != null;
+        PathMaker.PreviewAllPatterns = Arg("-probeAllPatterns") != null;
         originalAutoPilot = PlayerStats.Instance.isAutoPilotOn();
-        PlayerStats.Instance.setAutoPilotState(true);
+        PlayerStats.Instance.setAutoPilotState(!oneTap);
 
         Debug.Log(TAG + "probe fast=" + fast + " fps=" + fps + " turns=" + turnsWanted +
+                  " edge=" + edgeTest + " revive=" + reviveTest + " oneTap=" + oneTap +
                   " fixedDt=" + Time.fixedDeltaTime + " tutorials=" + PlayerStats.Instance.isTutorialsOn());
 
         // Let every Awake/Start in the scene finish and the menu settle. In the Editor the Google
@@ -160,6 +324,13 @@ public class MovementProbe : MonoBehaviour
             player.speed = Utility.Constants.TOP_PLAYER_SPEED;
             TimeScaleField.SetValue(pickUps, 3.5f);
         }
+
+        if (reviveTest && ReviveStep())
+            return;
+        if (edgeTest && EdgeStep())
+            return;
+        if (oneTap && Utility.camFollowPlayer)
+            OneTapStep();
 
         if (!Utility.camFollowPlayer)
         {
@@ -241,6 +412,7 @@ public class MovementProbe : MonoBehaviour
                 // The new line should run through the part's centre. Its cross-axis coordinate
                 // for the new direction is the part's coordinate on the OLD travel axis.
                 laneCentre = CrossAxis(player.direction, part.position);
+                turnPoint = part.position;
                 haveSegment = true;
                 segMin = float.MaxValue;
                 segMax = float.MinValue;
@@ -368,6 +540,10 @@ public class MovementProbe : MonoBehaviour
             foreach (GameObject go in GameObject.FindGameObjectsWithTag(tag))
             {
                 Vector3 q = go.transform.position;
+                // Only parts at the ball's own level: the path spirals upwards, so a turn part
+                // of a later lap can be right above the ball.
+                if (Mathf.Abs(q.y - p.y) > 2f)
+                    continue;
                 float dd = (q.x - p.x) * (q.x - p.x) + (q.z - p.z) * (q.z - p.z);
                 if (dd < bestD)
                 {
@@ -487,6 +663,9 @@ public class MovementProbe : MonoBehaviour
         Debug.Log(TAG + "==== RESULT (" + (fast ? "fast" : "normal") + ", " + fps + " fps) - " + why + " ====");
         Debug.Log(TAG + "turns measured: " + turnErrors.Count + "   fell: " + fell +
                   "   game time: " + (Time.time - startedAt).ToString("F1", ci) + "s");
+        if (reviveTest)
+            Debug.Log(TAG + "revive test: " + (!revived ? "the revive never completed"
+                : (fell ? "FELL AGAIN " : "no fall in ") + (turnErrors.Count - turnsAtRevive) + " turns after the revive"));
         Debug.Log(TAG + "turn error  " + Stats(turnErrors));
         Debug.Log(TAG + "line drift  " + Stats(drifts));
         Debug.Log(TAG + "air steps " + airSteps + "/" + steps + "   max air " + maxAir.ToString("F3", ci) +
