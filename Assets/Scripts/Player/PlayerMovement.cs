@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
@@ -21,6 +22,53 @@ public class PlayerMovement : MonoBehaviour
     private float startSpeed;
     public int timesRespawnedAfterChancePickedUp = 0;
 
+    // ---------------------------------------------------------------------------------------
+    // Movement model
+    //
+    // While the ball is on the track this script decides exactly where it goes every physics step:
+    //   - horizontal speed is exactly `speed`, on flat parts and ramps alike;
+    //   - vertical position is the height at which the ball rests on the track at the end of the
+    //     step, found with a sphere cast of the ball's own size, so ramps and the seams between
+    //     parts no longer kick it. The old code zeroed vertical speed on alternate steps and left
+    //     the contact solver to push the ball back out of each ramp: measured as 27-36% of the
+    //     asked speed lost on ramps, and hops of up to half the ball's radius at top speed - the
+    //     "jump";
+    //   - to get there, the ball's contacts with the track are ignored while it is on the track
+    //     (see move()), and its roll is set here rather than produced by friction;
+    //   - auto-turns (bolt / auto-pilot) happen exactly on the centre of the turn part instead of
+    //     whenever a distance check next ran (measured up to 0.42 units off at top speed).
+    // Off the track nothing is forced: with no ground under it the ball collides normally again
+    // and gravity takes over, which is how a missed turn still ends the run.
+    //
+    // Measure changes with Assets/Scripts/Diagnostics/MovementProbe.cs.
+    // ---------------------------------------------------------------------------------------
+
+    // The ground probe starts this far above the ball's centre, so a ball that has sunk slightly
+    // into a seam still finds the surface it is on.
+    private const float GROUND_PROBE_LIFT = 0.5f;
+    // A surface further than this below where the ball should be means the ball is in the air.
+    private const float GROUND_SNAP_DISTANCE = 0.2f;
+    // tan(50 degrees): the steepest rise or fall per unit of travel the ball follows on the ground.
+    private const float MAX_SLOPE_PER_STEP = 1.19f;
+    // Surfaces steeper than about 70 degrees are walls, not track.
+    private const float MIN_GROUND_NORMAL_Y = 0.35f;
+    // Visual spin cap. Physics used to clamp spin to 7 rad/s (the project's default max angular
+    // speed), and that is the look the game shipped with, so it is kept.
+    private const float MAX_VISUAL_SPIN = 7f;
+
+    private float ballRadius = 0.25f;
+    private int groundMask;
+    private Transform pendingAutoTurnPart;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    // Set by MovementProbe: log lost ground and unusual turns.
+    public static bool DebugMovement;
+#endif
+    // True while move() is placing the ball on the track. Static and volatile because the physics
+    // thread reads it (ignoreContactsOnTrack); only the scene's player installs that hook.
+    private static volatile bool drivenOnTrack;
+    private float trackVerticalSpeed;
+    private bool contactHookInstalled;
+
     void Awake()
     {
         myRB = GetComponent<Rigidbody>();
@@ -34,12 +82,40 @@ public class PlayerMovement : MonoBehaviour
 
         originalPosition = transform.position;
 
+        SphereCollider sphere = GetComponent<SphereCollider>();
+        Vector3 scale = transform.lossyScale;
+        ballRadius = sphere.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        sphere.sharedMaterial = new PhysicsMaterial("Ball (frictionless)")
+        {
+            staticFriction = 0,
+            dynamicFriction = 0,
+            frictionCombine = PhysicsMaterialCombine.Minimum,
+            bounciness = 0,
+            bounceCombine = PhysicsMaterialCombine.Minimum
+        };
+        groundMask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+        if (CompareTag("Player"))
+        {
+            sphere.hasModifiableContacts = true;
+            Physics.ContactModifyEvent += ignoreContactsOnTrack;
+            contactHookInstalled = true;
+        }
+
         resetPlayerValues();
 
         materialsManager.unlockBall(1);
         materialsManager.unlockFloor(1);
 
         // GetComponent<Moons>().setMoons();
+    }
+
+    void OnDestroy()
+    {
+        if (contactHookInstalled)
+        {
+            Physics.ContactModifyEvent -= ignoreContactsOnTrack;
+            drivenOnTrack = false;
+        }
     }
 
     // [System.Obsolete]
@@ -55,6 +131,9 @@ public class PlayerMovement : MonoBehaviour
 
     public void resetPlayerValues()
     {
+        stopInterpolation();
+        pendingAutoTurnPart = null;
+        drivenOnTrack = false;
         myRB.isKinematic = true;
         transform.position = previewPosition;
         transform.localRotation = Quaternion.Euler(0, 0, 15);
@@ -74,16 +153,33 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Interpolation smooths the rendered ball between physics steps, which otherwise land
+        // unevenly across frames (1, 2 or 3 steps per frame depending on time scale and frame
+        // rate). It is only on while this script drives the ball: the menu and the respawn
+        // sequence move the transform directly, which interpolation would fight.
+        bool driving = Utility.gameStarted && Utility.camFollowPlayer && !Utility.spawningAfterChance;
+        RigidbodyInterpolation wanted = driving ? RigidbodyInterpolation.Interpolate : RigidbodyInterpolation.None;
+        if (myRB.interpolation != wanted)
+            myRB.interpolation = wanted;
+
         if (Utility.gameStarted)
         {
             if (!Utility.stoppedForTutorials && !Utility.spawningAfterChance && Utility.camFollowPlayer)
                 move();
-            // stickToTheGround();
+            else
+                drivenOnTrack = false; // stopped, respawning or the run ended: the track holds the ball up again
         }
         else
         {
+            drivenOnTrack = false;
             transform.Rotate(new Vector3(0, Time.deltaTime * -Utility.Constants.ROTATION_SPEED, 0));
         }
+    }
+
+    private void stopInterpolation()
+    {
+        if (myRB != null)
+            myRB.interpolation = RigidbodyInterpolation.None;
     }
 
     public void movePlayerToPosition()
@@ -116,6 +212,9 @@ public class PlayerMovement : MonoBehaviour
 
     public void respawnForChance()
     {
+        stopInterpolation();
+        pendingAutoTurnPart = null;
+        drivenOnTrack = false;
         Utility.spawningAfterChance = true;
         myRB.isKinematic = false;
         cameraController.PlayChanceTakenEffect();
@@ -143,6 +242,10 @@ public class PlayerMovement : MonoBehaviour
 
     public void turnRight()
     {
+        // Any turn settles the ball's direction for this part, so a queued auto-turn must not fire
+        // as well: picking up a bolt on a turn part turns the ball there and then (BoltPickUp),
+        // and turning twice sends the ball back down the track it came from.
+        pendingAutoTurnPart = null;
         if (playerStats.isTutorialsOn() && pathMaker.nextDirection?.nextDistination == NextDistination.LEFT)
             return;
 
@@ -154,18 +257,16 @@ public class PlayerMovement : MonoBehaviour
 
         cameraController.turnRight();
 
-        if (Utility.shouldDequeue)
-        {
-            TurnDirection test = (TurnDirection)pathMaker.nextDirection;
-            // Debug.Log("Dequeue Turn Number = " + test.turnNumber + ", Distination = " + test.nextDistination);
-            Utility.shouldDequeue = false;
-        }
+        // The cast that used to be here read pathMaker.nextDirection into an unused variable and
+        // threw if it was null - which a manual turn can be.
+        Utility.shouldDequeue = false;
 
         keepGoingAfterTutorial();
     }
 
     public void turnLeft()
     {
+        pendingAutoTurnPart = null;
         if (playerStats.isTutorialsOn() && pathMaker.nextDirection?.nextDistination == NextDistination.RIGHT)
             return;
 
@@ -180,41 +281,15 @@ public class PlayerMovement : MonoBehaviour
 
         cameraController.turnLeft();
 
-        if (Utility.shouldDequeue)
-        {
-            TurnDirection test = (TurnDirection)pathMaker.nextDirection;
-            // Debug.Log("Dequeue Turn Number = " + test.turnNumber + ", Distination = " + test.nextDistination);
-            Utility.shouldDequeue = false;
-        }
+        Utility.shouldDequeue = false;
 
         keepGoingAfterTutorial();
     }
 
     public void autoTurn()
     {
-        // if (pathMaker.directions.Count == 0)
-        // {
-        //     Debug.Log("Directions queue is empty");
-        //     return;
-        // }
-
-        // int currentDirection = (int)direction;
-        // NextDistination nextDirection = ((TurnDirection)pathMaker.directions.Peek()).nextDistination;
-
-        // if (pathMaker.nextDirection == null)
-        // {
-        //     Debug.Log("Path maker next direction is null");
-        //     pathMaker.setFirstTurnAsNextDirection();
-
-        // Debug.Log("nextDirection " + pathMaker.nextDirection);
-
         if (pathMaker.nextDirection == null)
             return;
-        // }
-
-        // NextDistination nextDirection = ((TurnDirection)pathMaker.nextDirection).nextDistination;
-
-        //Debug.Log("Current direction = " + currentDirection + ", Next direction = " + nextDirection + ", Turning " + (nextDirection < currentDirection ? "Left" : "Right"));
 
         if (((TurnDirection)pathMaker.nextDirection).nextDistination == NextDistination.RIGHT)
             turnRight();
@@ -222,6 +297,59 @@ public class PlayerMovement : MonoBehaviour
             turnLeft();
 
         pathMaker.nextDirection = null;
+    }
+
+    /// <summary>
+    /// Bolt / auto-pilot: turn when the ball reaches the centre of <paramref name="turnPart"/>.
+    /// The turn itself happens inside the physics step that crosses the centre (see move()).
+    /// </summary>
+    public void queueAutoTurn(Transform turnPart)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement)
+        {
+            Vector3 f = directionVector(direction);
+            Vector3 d = turnPart.position - myRB.position;
+            Debug.Log("[Turn] queued " + turnPart.name + " ahead=" + (d.x * f.x + d.z * f.z).ToString("F3") +
+                      " replacing=" + (pendingAutoTurnPart != null ? pendingAutoTurnPart.name : "none") + " dir=" + direction +
+                      " next=" + (pathMaker.nextDirection.HasValue ? pathMaker.nextDirection.Value.nextDistination.ToString() : "null"));
+        }
+#endif
+        pendingAutoTurnPart = turnPart;
+    }
+
+    /// <summary>
+    /// Turns the way the part itself goes. autoTurn() reads PathMaker.nextDirection, which the
+    /// parts' Destroyer triggers share and every turn consumes: a run caught it already null at a
+    /// turn part's centre, so the ball did not turn there and turned late instead. The part the
+    /// ball is standing on cannot be out of date.
+    /// </summary>
+    private void turnForPart(Transform part)
+    {
+        bool left = part.CompareTag("LandLeft");
+        if (!left && !part.CompareTag("LandRight"))
+        {
+            autoTurn(); // not a turn part after all: fall back to the queue
+            return;
+        }
+
+        // Keep the shared queue in step: manual turns and the tutorial read it.
+        pathMaker.nextDirection = null;
+        if (left)
+            turnLeft();
+        else
+            turnRight();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement)
+            Debug.Log("[Turn] " + (left ? "LEFT" : "RIGHT") + " at " + part.name + " " + part.position.ToString("F2") +
+                      " ball " + myRB.position.ToString("F2") + " now heading " + direction);
+#endif
+    }
+
+    /// <summary>The ball is being stopped where it is (tutorial): let the track hold it up again.</summary>
+    public void stopDriving()
+    {
+        drivenOnTrack = false;
     }
 
     private void keepGoingAfterTutorial()
@@ -234,32 +362,152 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    Vector3 calculatedVelocity;
-    void move()
+    private static Vector3 directionVector(Directions d)
     {
-
-        calculatedVelocity = new Vector3(direction == Directions.East ? speed : direction == Directions.West ? -speed : 0,
-                                        0,
-                                        direction == Directions.North ? speed : direction == Directions.South ? -speed : 0);
-
-        if (myRB.linearVelocity.magnitude < speed)
-            calculatedVelocity.y += myRB.linearVelocity.y * 1.1f;
-
-        myRB.linearVelocity = calculatedVelocity;
+        switch (d)
+        {
+            case Directions.East: return Vector3.right;
+            case Directions.South: return Vector3.back;
+            case Directions.West: return Vector3.left;
+            default: return Vector3.forward;
+        }
     }
 
-    void stickToTheGround()
+    void move()
     {
-        RaycastHit hit;
-        if (Physics.Raycast(new Vector3(transform.position.x, transform.position.y + 0.1f, transform.position.z), -Vector3.up, out hit))
+        Vector3 position = myRB.position;
+        float dt = Time.fixedDeltaTime;
+        Vector3 forward = directionVector(direction);
+        Vector3 velocity = forward * speed;
+
+        if (pendingAutoTurnPart != null)
+            velocity = applyPendingAutoTurn(position, forward, velocity, dt);
+
+        // Where the ball will be horizontally at the end of this step, and the height at which it
+        // rests on the track there.
+        Vector3 next = position + velocity * dt;
+        float horizontalStep = new Vector2(velocity.x, velocity.z).magnitude * dt;
+        float restHeight;
+        Vector3 groundNormal;
+        if (findRestHeight(next, position.y, horizontalStep, out restHeight, out groundNormal))
         {
-            float distanceToGround = hit.distance - 0.05f;
+            // Arrive exactly at the resting height. The ball's contacts with the track are ignored
+            // meanwhile (ignoreContactsOnTrack): each part has its own collider, and the solver met
+            // the start edge of the next part as a bump and pushed the ball off it ("ghost
+            // collisions") - measured as hops of up to half the ball's radius and one-step speed
+            // drops to 64% at the seams.
+            drivenOnTrack = true;
+            trackVerticalSpeed = (restHeight - position.y) / dt;
+            velocity.y = trackVerticalSpeed;
+            // PhysX adds gravity to the velocity during the step; cancel it.
+            if (myRB.useGravity)
+                velocity.y -= Physics.gravity.y * dt;
 
-            // if (distanceToGround != 0.25f)
-            // Debug.Log("distance to ground = " + distanceToGround + ", " + transform.GetComponent<Collider>().bounds.extents.y + ", " + transform.position.y);
-
-            if (distanceToGround > 0.3f)
-                transform.position = new Vector3(transform.position.x, transform.position.y + (0.3f - distanceToGround), transform.position.z);
+            // Roll about the axis perpendicular to the surface and the motion.
+            Vector3 rollAxis = Vector3.Cross(groundNormal, new Vector3(velocity.x, 0, velocity.z));
+            if (rollAxis.sqrMagnitude > 0.000001f)
+                myRB.angularVelocity = rollAxis.normalized * Mathf.Min(speed / ballRadius, MAX_VISUAL_SPIN);
         }
+        else if (drivenOnTrack)
+        {
+            // Just left the track: carry on as it was moving; collisions count again and gravity
+            // decides from here.
+            drivenOnTrack = false;
+            velocity.y = trackVerticalSpeed;
+        }
+        else
+        {
+            velocity.y = myRB.linearVelocity.y;
+        }
+
+        myRB.linearVelocity = velocity;
+    }
+
+    // Runs on the physics thread, for every contact of the ball's collider (the only collider with
+    // hasModifiableContacts). While move() is placing the ball on the track, the track must not
+    // push it; off the track the ball collides normally.
+    private static void ignoreContactsOnTrack(PhysicsScene scene, NativeArray<ModifiableContactPair> pairs)
+    {
+        if (!drivenOnTrack)
+            return;
+        for (int p = 0; p < pairs.Length; p++)
+        {
+            ModifiableContactPair pair = pairs[p];
+            for (int i = 0; i < pair.contactCount; i++)
+                pair.IgnoreContact(i);
+        }
+    }
+
+    private Vector3 applyPendingAutoTurn(Vector3 position, Vector3 forward, Vector3 velocity, float dt)
+    {
+        if (!pendingAutoTurnPart.gameObject.activeInHierarchy)
+        {
+            // The part went back to the pool before the ball reached it; its position is now
+            // somewhere else entirely.
+            pendingAutoTurnPart = null;
+            return velocity;
+        }
+
+        Vector3 toCentre = pendingAutoTurnPart.position - position;
+        float ahead = toCentre.x * forward.x + toCentre.z * forward.z;
+        float step = speed * dt;
+        if (ahead > step)
+            return velocity; // the centre is not reached during this step
+
+        Transform turningAt = pendingAutoTurnPart;
+        pendingAutoTurnPart = null;
+        turnForPart(turningAt);
+
+        Vector3 newForward = directionVector(direction);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement && (newForward == forward || Mathf.Abs(ahead) > step))
+            Debug.Log("[Turn] at " + turningAt.name + " ahead=" + ahead.ToString("F3") + " step=" + step.ToString("F3") +
+                      " turned=" + (newForward != forward) + " dir=" + direction);
+#endif
+        if (newForward == forward)
+            return velocity; // nothing to turn to
+
+        if (Mathf.Abs(ahead) > step)
+            return newForward * speed; // far off (should not happen): turn in place, as before
+
+        // Finish the old line exactly at the centre and spend the rest of this step on the new
+        // line, so the ball ends the step on the new centre line. The one-step chord cuts the
+        // corner by at most a quarter of a step.
+        Vector3 target = forward * ahead + newForward * (step - Mathf.Abs(ahead));
+        return target / dt;
+    }
+
+    // The height at which the ball's centre rests on the track at horizontal position `at`.
+    // A sphere cast with the ball's own radius touches exactly where the ball would, whatever the
+    // shape underneath - flat, ramp, the start or top of a ramp, or the edge of a part.
+    private bool findRestHeight(Vector3 at, float currentY, float horizontalStep, out float restY, out Vector3 normal)
+    {
+        float maxClimb = horizontalStep * MAX_SLOPE_PER_STEP;
+        float maxDrop = maxClimb + GROUND_SNAP_DISTANCE;
+
+        Vector3 origin = new Vector3(at.x, currentY + GROUND_PROBE_LIFT, at.z);
+        RaycastHit hit;
+        if (Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, GROUND_PROBE_LIFT + maxDrop,
+                               groundMask, QueryTriggerInteraction.Ignore)
+            && hit.normal.y >= MIN_GROUND_NORMAL_Y)
+        {
+            restY = origin.y - hit.distance;
+            normal = hit.normal;
+            if (restY - currentY <= maxClimb + 0.01f)
+                return true;
+        }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement)
+        {
+            bool any = Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, 5f, groundMask, QueryTriggerInteraction.Ignore);
+            Debug.Log("[Ground] lost at " + at.ToString("F3") + " currentY=" + currentY.ToString("F3") + " maxClimb=" + maxClimb.ToString("F3") +
+                      " maxDrop=" + maxDrop.ToString("F3") + " castHit=" + any + (any ? " dist=" + hit.distance.ToString("F3") + " restY=" + (origin.y - hit.distance).ToString("F3") +
+                      " normal=" + hit.normal.ToString("F2") + " collider=" + hit.collider.name + "/" + (hit.collider.transform.parent != null ? hit.collider.transform.parent.name : "-") : ""));
+        }
+#endif
+
+        restY = currentY;
+        normal = Vector3.up;
+        return false;
     }
 }

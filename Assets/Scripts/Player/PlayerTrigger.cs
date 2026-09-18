@@ -15,8 +15,7 @@ public class PlayerTrigger : MonoBehaviour
     private bool isFirstTurn = true;
     private Transform fullStopPart;
     private float fullStopTotalDistance = 0;
-    private Transform autoTurnPart = null;
-    private float lastDistanceToCenter = int.MaxValue;
+    private Rigidbody body;
 
     // Start is called before the first frame update
     void Awake()
@@ -25,6 +24,7 @@ public class PlayerTrigger : MonoBehaviour
         playerMovement = FindObjectOfType<PlayerMovement>();
         playerStats = PlayerStats.Instance;
         pickUpsManager = FindObjectOfType<PickUpsManager>();
+        body = GetComponent<Rigidbody>();
         // inGameUI = FindObjectOfType<InGameUI>();
     }
 
@@ -41,15 +41,16 @@ public class PlayerTrigger : MonoBehaviour
     Vector3 playerStopPosition;
     float fullStopCurrentDistance;
     float newSpeed;
-    float difference;
     private void checkParts()
     {
         if (fullStopPart != null)
         {
             playerStopPosition = new Vector3(fullStopPart.position.x, fullStopPart.position.y + 0.6f, fullStopPart.position.z); // Added 0.6f to make the player above the land part
+            // The physics position, not transform.position: the ball is interpolated while it runs,
+            // so in Update its transform is up to one physics step behind.
             if (fullStopTotalDistance == 0)
-                fullStopTotalDistance = Vector3.Distance(transform.position, playerStopPosition);
-            fullStopCurrentDistance = Vector3.Distance(transform.position, playerStopPosition);
+                fullStopTotalDistance = Vector3.Distance(body.position, playerStopPosition);
+            fullStopCurrentDistance = Vector3.Distance(body.position, playerStopPosition);
             newSpeed = fullStopCurrentDistance / fullStopTotalDistance * Utility.Constants.TUTORIAL_PLAYER_SPEED;
             if (newSpeed > 0.2f)
                 playerMovement.speed = newSpeed;
@@ -60,34 +61,15 @@ public class PlayerTrigger : MonoBehaviour
             {
                 Utility.stoppedForTutorials = true;
                 playerMovement.speed = 0;
-                GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
-                GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                playerMovement.stopDriving();
                 // transform.position = playerStopPosition;
                 fullStopCurrentDistance = 0;
                 fullStopTotalDistance = 0;
                 fullStopPart = null;
                 inGameUI.playTutorialsAnimation();
             }
-        }
-        if (autoTurnPart != null)
-        {
-            if (playerMovement.direction == Directions.North || playerMovement.direction == Directions.South)
-                difference = autoTurnPart.position.z - transform.position.z;
-            else
-                difference = autoTurnPart.position.x - transform.position.x;
-
-            difference = Mathf.Abs(difference);
-
-            // float distanceToCenter = Vector3.Distance(transform.position, autoTurnPosition);
-            // Debug.Log("distance to center = " + difference);
-            if (difference <= 0.1f || lastDistanceToCenter < difference)
-            {
-                playerMovement.autoTurn();
-                autoTurnPart = null;
-                lastDistanceToCenter = int.MaxValue;
-                return;
-            }
-            lastDistanceToCenter = difference;
         }
     }
 
@@ -162,8 +144,10 @@ public class PlayerTrigger : MonoBehaviour
 
         if ((PlayerStats.Instance.isAutoPilotOn() || Utility.boltIsOn) && other.gameObject.CompareTag("AutoPilot"))
         {
-            autoTurnPart = other.transform.parent;
-            // playerMovement.autoTurn();
+            // PlayerMovement turns inside the physics step that reaches the part's centre. The old
+            // distance check here ran on whichever Update/FixedUpdate came next and could fire up
+            // to 0.42 units early or late at top speed.
+            playerMovement.queueAutoTurn(other.transform.parent);
         }
     }
 
