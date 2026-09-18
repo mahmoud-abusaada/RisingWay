@@ -87,7 +87,9 @@ direction applied to that step at all. Measured: 0.15 off centre on average, 0.4
 - **Vertical**: a sphere cast of the ball's own radius finds the height at which the ball rests on
   the track at the position it will reach at the end of this step, and the vertical speed is set
   to land exactly there. Ramp starts, ramp crests and part seams are all just "the surface at the
-  next position", so none of them can kick the ball.
+  next position", so none of them can kick the ball. There must also be track under the ball's
+  centre: without that check the ball rode along part edges in the air (fixed after the
+  18 September playtest, see `playtest-2026-09-18.md`).
 - **Contacts**: while the ball is on the track its contacts are ignored (`Physics.ContactModifyEvent`),
   so the solver cannot push it off the line the code has chosen. Triggers are unaffected, which is
   what pickups, turns and part spawning use.
