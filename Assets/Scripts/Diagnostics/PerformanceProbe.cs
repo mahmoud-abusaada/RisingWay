@@ -105,9 +105,24 @@ public class PerformanceProbe : MonoBehaviour
                   "   scale " + (urp != null ? urp.renderScale.ToString("F2", ci) : "?") +
                   "  hdr " + (urp != null ? urp.supportsHDR.ToString() : "?") +
                   "  msaa " + (urp != null ? urp.msaaSampleCount.ToString() : "?") +
+                  "  depth " + (urp != null ? urp.supportsCameraDepthTexture.ToString() : "?") +
+                  "  bloom " + BloomState() +
                   "  target " + Application.targetFrameRate +
                   "  quality " + QualitySettings.names[QualitySettings.GetQualityLevel()] +
                   "  scene " + (Utility.gameStarted ? "run" : "menu"));
+    }
+
+    // Whether the scene's bloom is on, for the line above: it is a per-frame GPU cost and the
+    // PerfExperiment cycle switches it.
+    private static string BloomState()
+    {
+        foreach (Volume v in FindObjectsByType<Volume>(FindObjectsInactive.Exclude))
+        {
+            Bloom b;
+            if (v.profile != null && v.profile.TryGet(out b))
+                return b.active.ToString();
+        }
+        return "none";
     }
 
     private static float Percentile(List<float> sorted, float p)
