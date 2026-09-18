@@ -41,9 +41,9 @@ public static class RisingWayBuilder
     }
 
     /// <summary>
-    /// Development build: defines DEVELOPMENT_BUILD, which is what gates
-    /// Assets/Scripts/Diagnostics/RenderDiagnostics.cs. A release build strips that class out
-    /// entirely, so use this entry point when the diagnostic needs to run on a device.
+    /// Development build: defines DEVELOPMENT_BUILD, which is what gates everything in
+    /// Assets/Scripts/Diagnostics. A release build strips those classes out entirely, so use this
+    /// entry point when a diagnostic needs to run on a device. Also turns on GPU frame timings.
     /// </summary>
     public static void BuildAndroidApkDev()
     {
@@ -86,14 +86,35 @@ public static class RisingWayBuilder
             options = development ? BuildOptions.Development : BuildOptions.None,
         };
 
-        BuildReport report;
+        // Development builds only: GPU frame times for PerformanceProbe and PerfExperiment. OpenGL
+        // ES, this project's first Android graphics API, reports them only with the profiler GPU
+        // recorders on. Put back straight after the build, so a release build never carries them.
+        bool frameTimingStats = PlayerSettings.enableFrameTimingStats;
+        bool openGLGpuRecorders = PlayerSettings.enableOpenGLProfilerGPURecorders;
+        if (development)
+        {
+            PlayerSettings.enableFrameTimingStats = true;
+            PlayerSettings.enableOpenGLProfilerGPURecorders = true;
+        }
+
+        BuildReport report = null;
+        Exception thrown = null;
         try
         {
             report = BuildPipeline.BuildPlayer(options);
         }
         catch (Exception e)
         {
-            Fail("BuildPipeline threw: " + e);
+            thrown = e;
+        }
+        finally
+        {
+            PlayerSettings.enableFrameTimingStats = frameTimingStats;
+            PlayerSettings.enableOpenGLProfilerGPURecorders = openGLGpuRecorders;
+        }
+        if (thrown != null)
+        {
+            Fail("BuildPipeline threw: " + thrown);
             return;
         }
 

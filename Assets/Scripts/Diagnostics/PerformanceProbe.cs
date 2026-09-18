@@ -9,7 +9,9 @@
 //
 // "1% low" is the average of the slowest 1% of frames, which is what stutter feels like; a high
 // p99 with a good average is a stutter problem, a bad average is a throughput problem. The GPU and
-// CPU lines come from Unity's FrameTimingManager and need a few frames before they report.
+// CPU times come from Unity's FrameTimingManager, need a few frames before they report, and read
+// n/a where the device does not measure them. On OpenGL ES that takes the profiler GPU recorders,
+// which RisingWayBuilder turns on for development builds.
 //
 // Deliberately excluded from release builds.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -25,11 +27,17 @@ public class PerformanceProbe : MonoBehaviour
     private const string TAG = "[PERF] ";
     private const float REPORT_EVERY_SECONDS = 5f;
 
+    // The newest frame timings, for PerfExperiment: they are captured here once per frame, which
+    // is how FrameTimingManager is meant to be used.
+    internal static bool HasLatestTiming { get; private set; }
+    internal static FrameTiming LatestTiming { get; private set; }
+
     private readonly List<float> frames = new List<float>(1024);
+    private readonly List<float> sorted = new List<float>(1024);
     private readonly FrameTiming[] timings = new FrameTiming[1];
     private float windowStarted;
     private double gpuMsSum, cpuMsSum;
-    private int timingSamples;
+    private int gpuSamples, cpuSamples;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
@@ -53,11 +61,21 @@ public class PerformanceProbe : MonoBehaviour
         frames.Add(Time.unscaledDeltaTime * 1000f);
 
         FrameTimingManager.CaptureFrameTimings();
-        if (FrameTimingManager.GetLatestTimings(1, timings) > 0)
+        HasLatestTiming = FrameTimingManager.GetLatestTimings(1, timings) > 0;
+        if (HasLatestTiming)
         {
-            gpuMsSum += timings[0].gpuFrameTime;
-            cpuMsSum += timings[0].cpuFrameTime;
-            timingSamples++;
+            LatestTiming = timings[0];
+            // Zero means "not measured" - OpenGL ES without the profiler GPU recorders, for one.
+            if (timings[0].gpuFrameTime > 0)
+            {
+                gpuMsSum += timings[0].gpuFrameTime;
+                gpuSamples++;
+            }
+            if (timings[0].cpuFrameTime > 0)
+            {
+                cpuMsSum += timings[0].cpuFrameTime;
+                cpuSamples++;
+            }
         }
 
         float elapsed = Time.realtimeSinceStartup - windowStarted;
@@ -67,27 +85,40 @@ public class PerformanceProbe : MonoBehaviour
         Report(elapsed);
         frames.Clear();
         gpuMsSum = cpuMsSum = 0;
-        timingSamples = 0;
+        gpuSamples = cpuSamples = 0;
         windowStarted = Time.realtimeSinceStartup;
+    }
+
+    // Mean frame time, and the average of the slowest 1% of frames: the stutter the player
+    // actually notices. Shared with PerfExperiment so both report the same thing.
+    internal static void Summarise(List<float> frameMs, List<float> sorted, out float meanMs, out float onePercentLowMs)
+    {
+        sorted.Clear();
+        sorted.AddRange(frameMs);
+        sorted.Sort();
+
+        float sum = 0;
+        foreach (float f in frameMs)
+            sum += f;
+        meanMs = sum / frameMs.Count;
+
+        int lowCount = Mathf.Max(1, sorted.Count / 100);
+        float lowSum = 0;
+        for (int i = sorted.Count - lowCount; i < sorted.Count; i++)
+            lowSum += sorted[i];
+        onePercentLowMs = lowSum / lowCount;
+    }
+
+    internal static string AverageMs(double sum, int samples)
+    {
+        return samples > 0 ? (sum / samples).ToString("F1", CultureInfo.InvariantCulture) : "n/a";
     }
 
     private void Report(float elapsed)
     {
         CultureInfo ci = CultureInfo.InvariantCulture;
-        List<float> sorted = new List<float>(frames);
-        sorted.Sort();
-
-        float sum = 0;
-        foreach (float f in frames)
-            sum += f;
-        float mean = sum / frames.Count;
-
-        // The slowest 1% of frames, averaged: the stutter the player actually notices.
-        int lowCount = Mathf.Max(1, sorted.Count / 100);
-        float lowSum = 0;
-        for (int i = sorted.Count - lowCount; i < sorted.Count; i++)
-            lowSum += sorted[i];
-        float onePercentLowMs = lowSum / lowCount;
+        float mean, onePercentLowMs;
+        Summarise(frames, sorted, out mean, out onePercentLowMs);
 
         Debug.Log(TAG + elapsed.ToString("F1", ci) + "s  fps avg " + (1000f / mean).ToString("F1", ci) +
                   "  1% low " + (1000f / onePercentLowMs).ToString("F1", ci) +
@@ -98,10 +129,7 @@ public class PerformanceProbe : MonoBehaviour
                   "  frames " + frames.Count);
 
         UniversalRenderPipelineAsset urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-        Debug.Log(TAG + "      " +
-                  (timingSamples > 0
-                      ? "gpu ms " + (gpuMsSum / timingSamples).ToString("F1", ci) + "  cpu ms " + (cpuMsSum / timingSamples).ToString("F1", ci)
-                      : "gpu/cpu ms unavailable") +
+        Debug.Log(TAG + "      gpu ms " + AverageMs(gpuMsSum, gpuSamples) + "  cpu ms " + AverageMs(cpuMsSum, cpuSamples) +
                   "   scale " + (urp != null ? urp.renderScale.ToString("F2", ci) : "?") +
                   "  hdr " + (urp != null ? urp.supportsHDR.ToString() : "?") +
                   "  msaa " + (urp != null ? urp.msaaSampleCount.ToString() : "?") +
