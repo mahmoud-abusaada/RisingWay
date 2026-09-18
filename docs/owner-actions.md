@@ -96,13 +96,14 @@ collection list, and Unity's Cloud Diagnostics data safety page.
 **What Unity actually collects in this build** (checked in code, not assumed):
 
 - **Unity crash reporting (Cloud Diagnostics)** is ON (`UnityConnectSettings.asset`,
-  `m_EnableCloudDiagnosticsReporting: 1`) - crash logs, diagnostics, device identifiers.
-- **Legacy Unity Analytics** is ON and initialises on startup in the same file.
-- **UGS Analytics** (`com.unity.services.analytics` 6.3.0) is installed but collects **nothing**:
-  since SDK 5 it only starts on `StartDataCollection()` / consent, and the game never calls it.
-- If you decide to switch Unity's analytics and crash reporting off (section 6 decision), the
-  first two rows stay - AdMob and Firebase still collect them - and only "who collects it"
-  changes.
+  `m_EnableCloudDiagnosticsReporting: 1`) - crash logs, diagnostics, device identifiers. This is
+  the only Unity data collection left, and it is worth keeping for the relaunch.
+- **Unity Analytics is gone** (2026-09-18). Legacy Analytics is switched off and both analytics
+  packages are removed: the legacy service **stopped accepting data on 1 February 2024**, and the
+  UGS Analytics package collected nothing because the game never started it. Firebase Analytics is
+  the game's analytics.
+- So the "App interactions" row is AdMob and Firebase only; the crash and diagnostics rows are
+  Unity crash reporting.
 
 ### 2.4 Ads declaration
 
@@ -210,6 +211,11 @@ Command-line builds cannot run while the Editor holds the project open.
 ---
 
 ## 6. Decisions made — do not revisit
+
+- **Unity Analytics is removed, Unity crash reporting stays** (2026-09-18). Legacy Unity Analytics
+  stopped accepting data on 1 February 2024, and the UGS Analytics package was never started by
+  the game, so neither collected anything. Firebase Analytics covers analytics; Cloud Diagnostics
+  is the only crash reporting the game has, so it stays until Firebase Crashlytics replaces it.
 
 - **Package name stays `com.AbuSada.RisingWay`.** On Google Play the package name *is* the app;
   it cannot be renamed, and a new one is a brand-new app. It is also bound to
