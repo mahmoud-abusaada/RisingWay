@@ -456,7 +456,7 @@ public class PartsPool : MonoBehaviour
             material = (baseMaterial as ColorMaterial).material;
         }
 
-        material = materialsManager.getLitMaterial(material, 2010);
+        material = materialsManager.getLitMaterial(materialsManager.getRuntimeCopy(material), 2010);
 
         if (part.Find("Mesh") != null)
             part.Find("Mesh").GetComponent<Renderer>().material = material;

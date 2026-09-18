@@ -159,3 +159,41 @@ prebuilt `.aar`, so either the AAR is rebuilt without it, or the app manifest ov
 override would drop straight in. **It should not be done blind**: sharing is a user-facing
 feature, and the removal needs the share flow exercised on a real device — ideally on both a
 modern Android and something near minSdk 26, where the permission still meant something.
+
+---
+
+## IF-05 — Runtime code writes to project assets, which the Editor then saves to disk
+
+**Confirmed.** Found while investigating the recurring `.mat` changes after Editor sessions
+(owner task 4.2).
+
+`PartsPool.setPartMaterial` and `ShopMenu.setPartMaterial` took the floor material **asset** from
+`MaterialsManager`'s lists and passed it to `getLitMaterial` / `getFadeMaterial`, which set
+`.shader` and `.renderQueue` **on that object**. In a player build that only changes the loaded
+copy; in the Editor it changes the file. That is exactly how `Dark Grey.mat` kept coming back with
+`m_CustomRenderQueue: 2010` instead of 3000.
+
+Fixed: `MaterialsManager.getRuntimeCopy(asset)` hands out one runtime copy per asset (so the parts
+still share one material, as before), and the three helpers now refuse a project asset in the
+Editor with an error naming the caller.
+
+**The same pattern is still live in `GraphicsManager`**, which writes `renderScale` and
+`supportsHDR` onto the URP asset (`Assets/UniversalRenderPipelineAsset.asset`) whenever the player
+moves the density slider or toggles HDR. Playing in the Editor therefore rewrites that asset too.
+It is not fixed here because the fix is a real decision - a per-quality-level override, or a
+runtime-only copy of the pipeline asset - rather than a mechanical change. Until then, the same
+advice applies: check `git status` after an Editor session.
+
+---
+
+## IF-06 — Free-grant buttons in the purchase menu
+
+**Potential issue, not reachable today.** 17 buttons in `PurchaseMenu` call
+`BuyDiamonds(20000)`, `BuyBolts(20)`, `BuyChances(25)` and so on directly from the scene, with no
+purchase involved. All of them live under sections that are **inactive** in the scene
+(`Content/Bolts`, `/Diamonds`, `/Double Points`, `/Chances`, `/Other/Ads`) and nothing switches
+those sections on - they are what the purchase menu looked like before the current product list.
+
+Made harmless in P1-06: those methods now only refresh the displayed counters and log a warning;
+grants come from `IapStore` alone. The dead sections themselves are still in the scene and would
+be better deleted, which needs the Editor.

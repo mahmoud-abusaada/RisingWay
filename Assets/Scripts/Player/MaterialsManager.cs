@@ -174,9 +174,46 @@ public class MaterialsManager : MonoBehaviour
         return ballMaterials;
     }
 
+    // The track shares one floor material between all its parts and edits it in place (shader
+    // and render queue). Editing the project asset itself is what rewrote .mat files on disk after
+    // playing in the Editor - Dark Grey.mat went from queue 3000 to 2010. Callers holding an asset
+    // take a runtime copy from here instead: the same sharing, one copy per asset, and the asset
+    // is never touched. In a player build the old way only changed the loaded copy; in the Editor
+    // it changed the file.
+    private readonly Dictionary<Material, Material> runtimeCopies = new Dictionary<Material, Material>();
+
+    public Material getRuntimeCopy(Material asset)
+    {
+        if (asset == null)
+            return null;
+        Material copy;
+        if (!runtimeCopies.TryGetValue(asset, out copy) || copy == null)
+        {
+            copy = new Material(asset);
+            copy.name = asset.name; // other code matches on material names
+            runtimeCopies[asset] = copy;
+        }
+        return copy;
+    }
+
+    // The helpers below modify the material they are given. Handing them a project asset is a bug;
+    // in the Editor it is caught and redirected to a runtime copy instead of being written to disk.
+    private Material neverAnAsset(Material m)
+    {
+#if UNITY_EDITOR
+        if (m != null && UnityEditor.EditorUtility.IsPersistent(m))
+        {
+            Debug.LogError("MaterialsManager: asked to modify the material ASSET '" + m.name +
+                           "'. Pass getRuntimeCopy(asset) instead. Using a runtime copy.");
+            return getRuntimeCopy(m);
+        }
+#endif
+        return m;
+    }
+
     public Material getLitMaterial(Material m, int renderQueue = -1)
     {
-        // Material m = new Material(material);
+        m = neverAnAsset(m);
         m.shader = litShader;
         if (renderQueue != -1)
             m.renderQueue = renderQueue;
@@ -187,6 +224,8 @@ public class MaterialsManager : MonoBehaviour
     {
         if (newInstance)
             m = new Material(m);
+        else
+            m = neverAnAsset(m);
         m.shader = stencilShader;
         if (renderQueue != -1)
             m.renderQueue = renderQueue;
@@ -195,7 +234,7 @@ public class MaterialsManager : MonoBehaviour
 
     public Material getFadeMaterial(Material m, int renderQueue = -1)
     {
-        // Material m = new Material(material);
+        m = neverAnAsset(m);
         m.shader = fadeShader;
         if (renderQueue != -1)
             m.renderQueue = renderQueue;

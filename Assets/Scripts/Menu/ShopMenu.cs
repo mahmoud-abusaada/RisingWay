@@ -730,6 +730,8 @@ public class ShopMenu : MonoBehaviour
             material = (baseMaterial as ColorMaterial).material;
         }
 
+        material = materialsManager.getRuntimeCopy(material); // never edit the asset itself
+
         if (part.tag == "Land")
         {
             material = materialsManager.getLitMaterial(material, floorRenderQueue + floorRenderModifier);
