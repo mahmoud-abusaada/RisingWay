@@ -10,18 +10,25 @@ using System.Collections;
 public class MoveDown : MonoBehaviour
 {
     private const float DROP_HEIGHT = 10f;
-    private const float DROP_SECONDS = 0.5f;
+    public const float DEFAULT_DROP_SECONDS = 0.5f;
     // easeOutBack's overshoot constant: 0.5 dips the part about 1% of the drop (0.08) below its
     // place before it settles. The usual 1.70158 dips it 10%, a full unit here.
     private const float OVERSHOOT = 0.5f;
 
     private Vector3 originalPos;
     private float elapsed;
+    private float dropSeconds = DEFAULT_DROP_SECONDS;
     private Transform previousPart = null;
 
     public void setPreviousPart(Transform previousPart)
     {
         this.previousPart = previousPart;
+    }
+
+    // Quicker for the path built after a revive, which has to be down before the ball is.
+    public void setDropSeconds(float seconds)
+    {
+        dropSeconds = seconds;
     }
 
     void Start()
@@ -33,9 +40,9 @@ public class MoveDown : MonoBehaviour
     void Update()
     {
         elapsed += Time.deltaTime;
-        if (elapsed < DROP_SECONDS)
+        if (elapsed < dropSeconds)
         {
-            float landed = easeOutBack(elapsed / DROP_SECONDS);
+            float landed = easeOutBack(elapsed / dropSeconds);
             transform.position = originalPos + new Vector3(0, DROP_HEIGHT * (1f - landed), 0);
             return;
         }

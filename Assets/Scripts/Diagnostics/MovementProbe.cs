@@ -95,6 +95,40 @@ public class MovementProbe : MonoBehaviour
     private float tapAt;
     private int secondTapIn;
 
+    // -probeBoltRejoin: every few turns, turn the ball off the path as a player reaching for a bolt
+    // would, run sideways for a few steps, then do what picking the bolt up does
+    // (PlayerMovement.rejoinPathAt). The ball must carry on along the path.
+    private bool boltRejoinTest;
+    private int rejoins, sidewaysSteps = -1, turnsAtLastRejoin;
+    private Transform rejoinPart;
+    private const int SIDEWAYS_STEPS = 4;
+
+    private void BoltRejoinStep()
+    {
+        if (sidewaysSteps >= 0)
+        {
+            if (++sidewaysSteps < SIDEWAYS_STEPS)
+                return;
+            player.rejoinPathAt(rejoinPart);
+            rejoins++;
+            sidewaysSteps = -1;
+            turnsAtLastRejoin = turnErrors.Count;
+            return;
+        }
+        Vector3 p = body.position;
+        if (turnErrors.Count < 3 || turnErrors.Count - turnsAtLastRejoin < 3 || !haveSegment ||
+            new Vector2(p.x - turnPoint.x, p.z - turnPoint.z).magnitude < 4.5f || NearestTurnPart(p) != null)
+            return;
+        RaycastHit under;
+        int notPlayer = Physics.DefaultRaycastLayers & ~(1 << player.gameObject.layer);
+        if (!Physics.Raycast(p, Vector3.down, out under, 2f, notPlayer, QueryTriggerInteraction.Ignore) ||
+            under.collider.attachedRigidbody == null)
+            return;
+        rejoinPart = under.collider.attachedRigidbody.transform;
+        player.turnRight(); // off the path, as if towards a bolt
+        sidewaysSteps = 0;
+    }
+
     private static Vector3 Forward(Directions d)
     {
         switch (d)
@@ -265,6 +299,7 @@ public class MovementProbe : MonoBehaviour
         edgeTest = Arg("-probeEdge") != null;
         reviveTest = Arg("-probeRevive") != null;
         oneTap = Arg("-probeOneTap") != null;
+        boltRejoinTest = Arg("-probeBoltRejoin") != null;
         PathMaker.PreviewAllPatterns = Arg("-probeAllPatterns") != null;
         originalAutoPilot = PlayerStats.Instance.isAutoPilotOn();
         PlayerStats.Instance.setAutoPilotState(!oneTap);
@@ -331,6 +366,8 @@ public class MovementProbe : MonoBehaviour
             return;
         if (oneTap && Utility.camFollowPlayer)
             OneTapStep();
+        if (boltRejoinTest && Utility.camFollowPlayer)
+            BoltRejoinStep();
 
         if (!Utility.camFollowPlayer)
         {
@@ -663,6 +700,8 @@ public class MovementProbe : MonoBehaviour
         Debug.Log(TAG + "==== RESULT (" + (fast ? "fast" : "normal") + ", " + fps + " fps) - " + why + " ====");
         Debug.Log(TAG + "turns measured: " + turnErrors.Count + "   fell: " + fell +
                   "   game time: " + (Time.time - startedAt).ToString("F1", ci) + "s");
+        if (boltRejoinTest)
+            Debug.Log(TAG + "bolt rejoin test: " + rejoins + " times off the path and back, fell: " + fell);
         if (reviveTest)
             Debug.Log(TAG + "revive test: " + (!revived ? "the revive never completed"
                 : (fell ? "FELL AGAIN " : "no fall in ") + (turnErrors.Count - turnsAtRevive) + " turns after the revive"));

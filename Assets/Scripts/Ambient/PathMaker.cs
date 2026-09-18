@@ -55,6 +55,7 @@ public class PathMaker : MonoBehaviour
     private const int SPIRAL_TURNS = 4;
     private const int SHORT_CLIMB_LEGS = 3;
     private int patternTier;
+    private float partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
     private bool spiralsUnlocked, shortClimbsUnlocked;
     private int spiralTurnsLeft, shortClimbsLeft;
     private Parts spiralTurn;
@@ -132,6 +133,7 @@ public class PathMaker : MonoBehaviour
         landPatterns.Add("R", new ArrayList { Parts.LandRight });
         landPatterns.Add("L", new ArrayList { Parts.LandLeft });
         patternTier = 0;
+        partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
         spiralsUnlocked = shortClimbsUnlocked = false;
         spiralTurnsLeft = shortClimbsLeft = 0;
 
@@ -200,18 +202,25 @@ public class PathMaker : MonoBehaviour
         }
     }
 
-    public void createStartGround(float secondsBetweenParts = 0.15f)
+    public void createStartGround(float secondsBetweenParts = 0.15f, float dropSeconds = MoveDown.DEFAULT_DROP_SECONDS)
     {
         if (startGroundCoroutine != null)
             StopCoroutine(startGroundCoroutine);
-        startGroundCoroutine = spawnStartBlocks(secondsBetweenParts);
+        startGroundCoroutine = spawnStartBlocks(secondsBetweenParts, dropSeconds);
         StartCoroutine(startGroundCoroutine);
     }
 
-    IEnumerator spawnStartBlocks(float secondsBetweenParts = 0.15f)
+    IEnumerator spawnStartBlocks(float secondsBetweenParts = 0.15f, float dropSeconds = MoveDown.DEFAULT_DROP_SECONDS)
     {
+        partDropSeconds = dropSeconds;
+        float started = Time.time;
         for (spawnedStraightCount = 0; spawnedStraightCount < startBlocksCount; spawnedStraightCount++)
         {
+            // Each part at its own time, several in one frame if frames are slow, so a slow phone
+            // does not stretch the sequence - the revived ball is waiting for its end.
+            while (Time.time - started < spawnedStraightCount * secondsBetweenParts)
+                yield return null;
+
             if (spawnedStraightCount < straightPathLength - 1)
                 if (spawnedStraightCount == 0)
                     spawnPart(Parts.LandStart, false);
@@ -224,9 +233,8 @@ public class PathMaker : MonoBehaviour
             //     Utility.gameStarted = true;
 
             updatePartsRenderQueue();
-
-            yield return new WaitForSeconds(secondsBetweenParts);
         }
+        partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
     }
 
     public void spawnPart()
@@ -480,6 +488,7 @@ public class PathMaker : MonoBehaviour
         }
 
         part.GetComponent<MoveDown>().setPreviousPart(nextPart);
+        part.GetComponent<MoveDown>().setDropSeconds(partDropSeconds);
 
         nextPart = part;
 
@@ -800,9 +809,10 @@ public class PathMaker : MonoBehaviour
         lastSpawnedPart = null;
         directions.Clear();
         pickedLandsPattern = null;
-        // Faster than at the start of a run: the revived ball waits for these parts to land
-        // (PlayerMovement.releaseWhenPathHasLanded), so this is how long the player waits.
-        createStartGround(0.08f);
+        // Much faster than at the start of a run: the 15 parts are down 0.72 s after this, and
+        // the revived ball takes 1 s to reach its place, so it never has to wait for them
+        // (PlayerMovement.releaseWhenPathHasLanded holds it if it ever would).
+        createStartGround(0.03f, 0.3f);
     }
 
     public void boltPickedUp()

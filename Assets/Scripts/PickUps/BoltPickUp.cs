@@ -37,11 +37,10 @@ public class BoltPickUp : MonoBehaviour
             shineEffect.gameObject.SetActive(false);
             partsPool.setPartAfterTime(transform, boltEffect.main.startLifetimeMultiplier);
 
-            // A bolt on a turn part turns the ball there. Queued rather than turned on the spot, so
-            // it happens on the part's centre like every other automatic turn - the ball reaches
-            // this pickup up to 0.7 units before the centre.
-            if (transform.parent.CompareTag("LandLeft") || transform.parent.CompareTag("LandRight"))
-                playerMovement.queueAutoTurn(transform.parent);
+            // Back onto the path, facing its way - the player may have turned off it to reach the
+            // bolt. On a turn part the ball turns on the centre, like every automatic turn (the
+            // ball reaches this pickup up to 0.7 units before it).
+            playerMovement.rejoinPathAt(transform.parent);
 
             pickUpsManager.activateBolt();
         }

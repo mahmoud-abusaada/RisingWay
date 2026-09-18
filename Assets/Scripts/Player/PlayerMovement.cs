@@ -252,6 +252,7 @@ public class PlayerMovement : MonoBehaviour
     // parts that were still dropping - and fell again straight after being revived.
     private IEnumerator releaseWhenPathHasLanded(Vector3 holdAt)
     {
+        float waitingSince = Time.time;
         while (!pathMaker.firstPartsHaveLanded(pathMaker.startBlocksCount))
         {
             // The run was left meanwhile (Utility.resetFlags): nothing to release.
@@ -264,6 +265,10 @@ public class PlayerMovement : MonoBehaviour
             yield return new WaitForFixedUpdate();
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // The path is built to be down before the ball arrives; a wait here means it was not.
+        Debug.Log("[Revive] the ball waited " + (Time.time - waitingSince).ToString("F2") + " s for the path to land");
+#endif
         Utility.camFollowPlayer = true;
         Utility.spawningAfterChance = false;
         myRB.useGravity = true;
@@ -393,6 +398,78 @@ public class PlayerMovement : MonoBehaviour
             Debug.Log("[Turn] " + (left ? "LEFT" : "RIGHT") + " at " + part.name + " " + part.position.ToString("F2") +
                       " ball " + myRB.position.ToString("F2") + " now heading " + direction);
 #endif
+    }
+
+    /// <summary>
+    /// Picking up a bolt puts the ball back on the path: heading the way the path goes at
+    /// <paramref name="part"/>, on that part's centre line. A player who turned off the path to
+    /// reach a bolt used to carry on sideways at bolt speed and fall. Arriving the normal way on a
+    /// turn part, the ball still turns on the centre, like every automatic turn.
+    /// </summary>
+    public void rejoinPathAt(Transform part)
+    {
+        Directions incoming = pathDirectionOf(part);
+        bool turnPart = isTurnPart(part);
+        Directions outgoing = !turnPart ? incoming
+            : (Directions)(((int)incoming + (part.CompareTag("LandRight") ? 90 : 270)) % 360);
+
+        if (turnPart && direction == incoming)
+        {
+            queueAutoTurn(part);
+        }
+        else if (direction != incoming && direction != outgoing)
+        {
+            // Off the path: face the way it leaves this part. A turn already queued further on
+            // still stands (turning cancels it).
+            Transform queuedFurtherOn = pendingAutoTurnPart != part ? pendingAutoTurnPart : null;
+            turnTo(outgoing);
+            pendingAutoTurnPart = queuedFurtherOn;
+        }
+        if (turnPart && direction == outgoing)
+            partTurnedOn = part; // turned for this part: taps on it must not turn the ball again
+
+        moveOntoCentreLine(part);
+    }
+
+    // The way the path enters a part: PathMaker turns each part so its own X axis points that way
+    // (setPartPosition: yaw 0 for East, 90 for South, 180 for West, -90 for North).
+    private static Directions pathDirectionOf(Transform part)
+    {
+        Vector3 along = part.rotation * Vector3.right;
+        if (Mathf.Abs(along.x) >= Mathf.Abs(along.z))
+            return along.x > 0 ? Directions.East : Directions.West;
+        return along.z > 0 ? Directions.North : Directions.South;
+    }
+
+    private void turnTo(Directions target)
+    {
+        int quartersRight = (((int)target - (int)direction) / 90 + 4) % 4;
+        if (quartersRight == 3)
+            turnLeft();
+        else
+            for (int i = 0; i < quartersRight; i++)
+                turnRight();
+    }
+
+    // Onto the part's centre line for the current direction, at the height the ball rests there.
+    private void moveOntoCentreLine(Transform part)
+    {
+        Vector3 p = myRB.position;
+        if (direction == Directions.North || direction == Directions.South)
+            p.x = part.position.x;
+        else
+            p.z = part.position.z;
+
+        RaycastHit hit;
+        Vector3 origin = new Vector3(p.x, p.y + GROUND_PROBE_LIFT, p.z);
+        if (Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, GROUND_PROBE_LIFT + 1f,
+                               groundMask, QueryTriggerInteraction.Ignore)
+            && hit.normal.y >= MIN_GROUND_NORMAL_Y)
+            p.y = origin.y - hit.distance;
+
+        myRB.position = p;
+        Vector3 v = myRB.linearVelocity;
+        myRB.linearVelocity = new Vector3(v.x, 0f, v.z);
     }
 
     /// <summary>The ball is being stopped where it is (tutorial): let the track hold it up again.</summary>
