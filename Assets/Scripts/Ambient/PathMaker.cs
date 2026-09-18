@@ -498,34 +498,32 @@ public class PathMaker : MonoBehaviour
         setPartPosition(part);
     }
 
-    // Draw order for the path: the part furthest ahead first. The part under the ball and the one
-    // before it keep the path material's own settings, which do not write depth - that is what
-    // lets a planet's moons show through the track (SolarSystem draws them at 2400, after every
-    // part). Drawn nearest-first, as this used to be, the parts ahead came after them and nothing
-    // could hide them: the next part's edges showed over the part the ball was on. Drawn
-    // furthest-first, the parts ahead write their depth before the nearer parts are drawn over them.
-    // Each part gets three queues, as before: its end blocks, then its pick-up, then the part.
+    int index = 1;
+    int notDestroyingIndex = 0;
+    bool isFade = true;
     public void updatePartsRenderQueue()
     {
         fixedUpdatesCount = 0;
-        int count = currentGamePathParent.childCount;
-        int position = 0;
-        int notDestroyingIndex = 0;
+        index = 1;
+        notDestroyingIndex = 0;
+        isFade = true;
         foreach (Transform part in currentGamePathParent)
         {
             if (part.name != Utility.Constants.DESTROYING_OBJECT_NAME)
                 notDestroyingIndex++;
 
-            bool isFade = notDestroyingIndex > 2 && Utility.playerIsInPosition;
-            int queue = 2001 + 3 * (count - 1 - position);
+            if (notDestroyingIndex == 0 || notDestroyingIndex == 1 || notDestroyingIndex == 2 || !Utility.playerIsInPosition)
+                isFade = false;
+            else if (notDestroyingIndex > 2)
+                isFade = true;
 
-            setPartMaterial(part.Find("Mesh"), isFade, queue + 2);
-            setPartMaterial(part.Find("PartStartBlock"), isFade, queue);
-            setPartMaterial(part.Find("PartEndBlock"), isFade, queue);
+            setPartMaterial(part.Find("Mesh"), isFade, 2000 + index + 1);
+            setPartMaterial(part.Find("PartStartBlock"), isFade, 2000 + index - 1);
+            setPartMaterial(part.Find("PartEndBlock"), isFade, 2000 + index - 1);
 
             if (part.Find("PickUp") != null)
-                part.Find("PickUp").GetComponentInChildren<Renderer>().material.renderQueue = queue + 1;
-            position++;
+                part.Find("PickUp").GetComponentInChildren<Renderer>().material.renderQueue = 2000 + index;
+            index++;
         }
     }
 
