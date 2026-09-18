@@ -21,9 +21,16 @@ public class SettingsMenu : MonoBehaviour
 
     // P2-07: Google requires users in regulated regions (EEA/UK and some US states) to be able to
     // change their ad-consent choice from inside the app. This button is only shown to them.
-    // It must be created in the Settings panel in the Editor and its OnClick wired to
-    // OpenPrivacyOptions(). Left unassigned, the menu works exactly as before.
+    // Created and wired by the "Rising Way / Add Privacy Options Button" tool
+    // (Assets/Editor/PrivacyOptionsButtonTool.cs). Left unassigned, the menu works exactly as before.
     [SerializeField] private Button privacyOptionsButton;
+    // Also set by that tool. The button sits in its own row at
+    // the bottom of this section; the section and the scroll content grow by that row only while
+    // the button is shown, so users who never see it get the menu exactly as before.
+    [SerializeField] private RectTransform privacyOptionsSection;
+    [SerializeField] private RectTransform privacyOptionsScrollContent;
+    [SerializeField] private float privacyOptionsRowHeight = 0;
+    private bool privacyOptionsRowApplied;
 
     private MenusController menusController;
     private PlayerStats playerStats;
@@ -73,10 +80,7 @@ public class SettingsMenu : MonoBehaviour
         // Re-evaluated every time the menu opens: the requirement is only known once UMP has
         // answered, which can be after the menu was first built.
         if (privacyOptionsButton != null)
-        {
-            privacyOptionsButton.gameObject.SetActive(
-                AdmobManager.Instance != null && AdmobManager.Instance.IsPrivacyOptionsRequired);
-        }
+            setPrivacyOptionsVisible(AdmobManager.Instance != null && AdmobManager.Instance.IsPrivacyOptionsRequired);
 
         GamePlayMode selectedGamePlayMode = PlayerStats.Instance.getGamePlayMode();
         switch (selectedGamePlayMode)
@@ -136,6 +140,27 @@ public class SettingsMenu : MonoBehaviour
             tutorialsSwipeLeftContainer.GetComponent<Animation>().Stop();
             yield return new WaitForSecondsRealtime(0.3f);
         }
+    }
+
+    private void setPrivacyOptionsVisible(bool visible)
+    {
+        privacyOptionsButton.gameObject.SetActive(visible);
+        if (visible == privacyOptionsRowApplied || privacyOptionsRowHeight <= 0)
+            return;
+
+        float delta = visible ? privacyOptionsRowHeight : -privacyOptionsRowHeight;
+        growDownwards(privacyOptionsSection, delta);
+        growDownwards(privacyOptionsScrollContent, delta);
+        privacyOptionsRowApplied = visible;
+    }
+
+    // Changes a top-anchored rect's height while keeping its top edge where it is.
+    private static void growDownwards(RectTransform rect, float delta)
+    {
+        if (rect == null)
+            return;
+        rect.sizeDelta += new Vector2(0, delta);
+        rect.anchoredPosition -= new Vector2(0, delta * (1 - rect.pivot.y));
     }
 
     public void OpenPrivacyOptions()

@@ -17,8 +17,7 @@ here. Until one exists, EEA/UK users see no form and **get no ads at all**.
 - ✅ **Privacy & messaging → European regulations** — **published and verified.** A debug-EEA run on
   the Pixel 10 Pro emulator shows the form with "Do not consent" on the first layer; both Consent
   and Do not consent initialise ads correctly (declining gives Limited Ads, not zero ads).
-- **Privacy & messaging → US state regulations** → Create message → publish. Several US states now
-  require an opt-out; the SDK handles it once this exists.
+- ✅ **Privacy & messaging → US state regulations** - done (2026-09-17).
 - You will be asked for a **privacy policy URL** — see 3.1.
 
 ### 1.2 Clear "Account not approved yet"
@@ -51,7 +50,9 @@ since AdMob looks for the file on exactly that domain.
 The URL dying is what got the app delisted. Set it under **Policy → App content → Privacy policy**
 once the page exists (3.1).
 
-### 2.2 Target audience and content — **BLOCKS RELEASE** (P9-02)
+### 2.2 Target audience and content — done for the age groups (P9-02)
+
+✅ **Target age groups: 13+** - done (2026-09-17). The rest of this section still applies.
 
 The child-directed ad tag was removed in P2-09, so the listing must agree:
 
@@ -62,23 +63,46 @@ The child-directed ad tag was removed in P2-09, so the listing must agree:
 
 ### 2.3 Data safety form — **BLOCKS RELEASE**
 
-Declare what the app actually collects:
+**"Does it have to list Unity as well as Google?"** The form never asks for company names -
+there is nowhere to type "Google" or "Unity". What it asks is which **data types** the app
+collects or shares, counting everything its SDKs do, and why. So the answer is: Unity is not
+named anywhere, but the data types Unity's SDKs collect must be included in your answers, and
+they are the same types Google's SDKs collect, so in practice Unity adds nothing new to tick.
 
-| Data | Collected | Shared | Why |
-|---|---|---|---|
-| Device or other IDs (advertising ID) | Yes | Yes (Google AdMob, Firebase, Unity) | Advertising, analytics |
-| App interactions | Yes | Yes (Google Firebase, Unity Analytics) | Analytics |
-| Crash logs / diagnostics | Yes | Yes (Unity crash reporting) | Analytics, app stability |
-| Purchase history | Yes | No | App functionality (in-app purchases) |
+Declare:
 
-**Unity is a data recipient too, not just Google.** `UnityConnectSettings.asset` has Unity
-Analytics enabled and initialising on startup, and Unity crash reporting enabled;
-`com.unity.services.analytics` is installed and `UnityServices.InitializeAsync()` runs. The P3-02
-plan says Unity Analytics is being removed, but it is still switched on. Until it is actually
-removed, it must be declared here and it is named in the privacy policy.
+| Data type (Play's wording) | Collected | Shared | Purposes | Who actually collects it |
+|---|---|---|---|---|
+| Device or other IDs | Yes | Yes | Advertising or marketing, Analytics, Fraud prevention | AdMob (advertising ID), Firebase Analytics (app instance ID, advertising ID), Unity (device ids) |
+| Location → Approximate location | Yes | Yes | Advertising or marketing, Analytics | AdMob and Firebase derive a coarse location from the IP address |
+| App activity → App interactions | Yes | Yes | Advertising or marketing, Analytics | AdMob (ad interactions), Firebase (screens, sessions) |
+| App info and performance → Crash logs | Yes | No | Analytics | Unity crash reporting (Cloud Diagnostics) |
+| App info and performance → Diagnostics | Yes | No | Analytics | Unity crash reporting, AdMob SDK performance data |
+| Financial info → Purchase history | Yes | No | App functionality, Analytics | Firebase logs in-app purchase events automatically |
 
-Data is encrypted in transit: **Yes**. Users can request deletion: answer honestly — there is no
-account system, so data is tied to the device, not a login.
+Notes on the two columns people get wrong:
+
+- **Shared** means sent to another company that uses it for their own purposes. Advertising data
+  sent to Google for ad selection is the clear case, so the rows above that feed advertising are
+  marked shared. Unity's crash reporting is a service provider processing on your behalf, which
+  Play's definition excludes from "shared" - Unity's own guidance says shared: No.
+- **Processed ephemerally**: no. **Data is encrypted in transit**: yes (both Google and Unity
+  state this). **Users can request deletion**: there is no account system, so the honest answer
+  is that data is tied to the device; a player can reset their advertising ID or uninstall.
+
+Sources: Google's AdMob data disclosure page, Google Analytics for Firebase's automatic
+collection list, and Unity's Cloud Diagnostics data safety page.
+
+**What Unity actually collects in this build** (checked in code, not assumed):
+
+- **Unity crash reporting (Cloud Diagnostics)** is ON (`UnityConnectSettings.asset`,
+  `m_EnableCloudDiagnosticsReporting: 1`) - crash logs, diagnostics, device identifiers.
+- **Legacy Unity Analytics** is ON and initialises on startup in the same file.
+- **UGS Analytics** (`com.unity.services.analytics` 6.3.0) is installed but collects **nothing**:
+  since SDK 5 it only starts on `StartDataCollection()` / consent, and the game never calls it.
+- If you decide to switch Unity's analytics and crash reporting off (section 6 decision), the
+  first two rows stay - AdMob and Firebase still collect them - and only "who collects it"
+  changes.
 
 ### 2.4 Ads declaration
 
@@ -133,32 +157,42 @@ AdMob shows you in 1.3.
 
 ### 4.1 Add the Privacy Options button — **BLOCKS RELEASE** (P2-07)
 
-Google requires EEA/UK users to be able to change consent from inside the app. The code is ready;
-the button is not, because hand-editing scene YAML to create UI is unsafe.
+Google requires EEA/UK users to be able to change consent from inside the app, and **the
+published consent form already promises this button exists** - it tells users to "look for a link
+or button in the app menu to manage or withdraw consent". Shipping without it breaks a statement
+the app itself makes.
 
-**The published consent form already promises this button exists** — it tells users to "look for
-a link or button in the app menu to manage or withdraw consent". Shipping without it breaks a
-statement the app itself makes.
+**This is now a menu command, not hand-editing.** In the Editor:
 
-1. Open **SampleScene**, select the **Settings** panel.
-2. Duplicate an existing button, rename it **Privacy Options**, set its label.
-3. On the button's **OnClick**, add the Settings panel object → `SettingsMenu.OpenPrivacyOptions`.
-4. On the **SettingsMenu** component, drag the new button into **Privacy Options Button**.
-5. Save the scene.
+**Rising Way → Add Privacy Options Button**
 
-It hides itself automatically for users outside regulated regions, so you will not see it from
-home — that is expected.
+It copies the Settings panel's Back button, puts it in a new row at the bottom of the "Other"
+section, labels it PRIVACY OPTIONS, wires it to `SettingsMenu.OpenPrivacyOptions`, and saves the
+scene. Running it twice does nothing the second time.
 
-### 4.2 After any Unity session, check `git status` for `.mat` changes
+It hides itself for users outside regulated regions, and the section only grows by that row when
+it is shown, so you will not see it from home - that is expected. To see it, run a development
+build with the EEA debug setting (the emulator's hashed id is already in `AdmobManager`).
 
-Two known problems rewrite material files behind your back:
+### 4.2 After any Unity session, check `git status` — mostly fixed
 
-- Playing in the Editor can write a runtime render queue into a material **asset** —
-  `Dark Grey.mat` went from 3000 to 2010.
-- URP re-applies *Preserve Specular Lighting* when it re-saves a transparent material —
-  `Earth Water.mat` gained it, which is the white-sky bug again.
+The cause of the recurring `.mat` changes is fixed (IF-05): runtime code was editing the floor
+material **assets** in place, so `Dark Grey.mat` came back with a render queue of 2010 after every
+session. Materials now get a runtime copy.
 
-If either file shows up modified and you did not change it, discard the change.
+Two reasons to still glance at `git status`:
+
+- **`Assets/UniversalRenderPipelineAsset.asset`** - `GraphicsManager` still writes `renderScale`
+  and `supportsHDR` onto the pipeline asset when the density slider or HDR toggle is used, so
+  playing in the Editor can rewrite that file. Not yet fixed: the right fix is a decision, not a
+  mechanical change.
+- **`Earth Water.mat`** - URP re-applies *Preserve Specular Lighting* when it re-saves a
+  transparent material, which is the white-sky bug again.
+- **`Assets/GoogleMobileAds/Editor/Resources/PlaceholderAds/*.prefab`** - Unity re-saves these
+  third-party prefabs into the current format whenever the Editor shows a placeholder ad. Harmless,
+  but noise.
+
+If any of those show up modified and you did not change them, discard the change.
 
 ### 4.3 Close Unity before asking for a build
 
