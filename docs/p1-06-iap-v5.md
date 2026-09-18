@@ -69,3 +69,63 @@ Do this **after** the Android build is green, not before. It touches the revenue
 be verified without a store connection, and it is not blocking anything today. Rewriting live
 purchase plumbing while the build itself is still failing would make it impossible to tell which
 change broke what.
+
+---
+
+# Done — 2026-09-17
+
+Rewritten on the IAP 5 API. `PurchaseMenu` no longer talks to the store at all.
+
+## Shape
+
+**`Assets/Scripts/Menu/IapStore.cs`** (new) owns everything: it connects at app start
+(`RuntimeInitializeOnLoadMethod`), fetches the catalog's products, fetches previous purchases, and
+decides what each product grants. It raises `ProductsReady`, `PurchaseGranted`, `PurchaseFailed`
+and `PurchaseDeferred`.
+
+**`PurchaseMenu`** is now display and input only: prices, counters, dialogs, and asking `IapStore`
+to start a purchase or a restore.
+
+## Why it starts at launch, rather than with the menu
+
+`PurchaseMenu` is **inactive in the scene**, so its `Awake` only ran when a player first opened
+the store. Until then the store was never connected, which meant:
+
+- a purchase interrupted by the app being killed was not delivered until the player happened to
+  open the store again (IAP replays unfinished purchases when it connects), and
+- **Remove Ads was not restored after a reinstall** until the same thing happened.
+
+Both now happen at startup, which is also where IAP 5 expects `FetchPurchases()` to be called.
+
+## The four "must not regress" items
+
+1. **P2-03's double-purchase fix** — kept, with the same comment, now driven by `ProductsReady`
+   instead of the initialise callback.
+2. **`remove_ads`** — granted from confirmed purchases at startup as well as from a fresh
+   purchase, and it hides the banner *before* setting the flag, because `HideBannerAd()` checks
+   `isAdEnabled()` and does nothing once ads are off. The old order left the banner up until the
+   next screen.
+3. **The 21 product payouts** — copied across unchanged, and a product with no case now logs an
+   error instead of silently giving nothing.
+4. **`RestorePurchases`** — now `StoreController.RestoreTransactions`, which is the supported call
+   on both stores (on Google Play purchases are already restored at startup; this is for the App
+   Store).
+
+## Other changes this made possible
+
+- Grants are saved immediately (`PlayerStats.Flush()`) before the purchase is confirmed to the
+  store, so a crash between the two cannot lose a paid-for item.
+- Google Play deferred purchases (payment pending) now tell the player instead of appearing to do
+  nothing.
+- **Codeless auto-initialisation is off** (`IAPProductCatalog.json`). The project has no codeless
+  IAP buttons, and leaving it on meant a second, unused store connection at startup.
+- The scene still has old free-grant "BuyButton"s (`PurchaseMenu.BuyDiamonds(20000)` and friends)
+  in switched-off sections of the purchase menu. They cannot be reached today; they now only
+  refresh the counters and log a warning instead of handing out items, so re-enabling one of those
+  sections by accident cannot give the shop away.
+
+## Still to verify
+
+The Editor's fake store exercises the flow, but a real purchase has to be tested against Google
+Play with a licence-tested account, including: buy a consumable, kill the app mid-purchase and
+relaunch, and reinstall with Remove Ads owned.

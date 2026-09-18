@@ -1,14 +1,15 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using TMPro;
-using Unity.Services.Core;
-using Unity.Services.Core.Environments;
 using UnityEngine;
 using UnityEngine.Purchasing;
 
-public class PurchaseMenu : MonoBehaviour, IStoreListener
+/// <summary>
+/// The in-app purchase menu. Display and input only: the store connection, and what each
+/// purchase grants, live in <see cref="IapStore"/> (P1-06).
+/// </summary>
+public class PurchaseMenu : MonoBehaviour
 {
     [SerializeField] public RectTransform contentRect;
     [SerializeField] private TextMeshProUGUI loadingText;
@@ -20,45 +21,8 @@ public class PurchaseMenu : MonoBehaviour, IStoreListener
     [SerializeField] private List<ProductItem> products;
     [SerializeField] private ConfirmationDialog confirmationDialog;
     private MenusController menusController;
-    private IStoreController controller;
-    private IExtensionProvider extensions;
     private Action OnPurchaseCompleted;
-
-    async void Awake()
-    {
-        InitializationOptions options = new InitializationOptions()
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        .SetEnvironmentName("test");
-#else
-        .SetEnvironmentName("production");
-#endif
-        await UnityServices.InitializeAsync(options);
-        ResourceRequest operation = Resources.LoadAsync<TextAsset>("IAPProductCatalog");
-        operation.completed += HandleIAPCatalogLoaded;
-    }
-
-    private void HandleIAPCatalogLoaded(AsyncOperation Operation)
-    {
-        ResourceRequest request = Operation as ResourceRequest;
-
-        ProductCatalog catalog = JsonUtility.FromJson<ProductCatalog>((request.asset as TextAsset).text);
-
-#if UNITY_ANDROID
-        ConfigurationBuilder builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance(AppStore.GooglePlay));
-#elif UNITY_IOS
-        ConfigurationBuilder builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance(AppStore.AppleAppStore));
-#else
-        ConfigurationBuilder builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance(AppStore.NotSpecified));
-#endif
-
-        foreach (ProductCatalogItem item in catalog.allProducts)
-        {
-            builder.AddProduct(item.id, item.type);
-            Debug.Log(item.id);
-        }
-
-        UnityPurchasing.Initialize(this, builder);
-    }
+    private IapStore subscribedStore;
 
     void Start()
     {
@@ -67,17 +31,48 @@ public class PurchaseMenu : MonoBehaviour, IStoreListener
 
     void OnEnable()
     {
+        // Subscribed once and kept while the menu is closed: a purchase can finish after the
+        // player has left the menu, and its Buy button must still be re-enabled.
+        subscribe();
         updatePickUpsCount();
         CreateProductsUI();
     }
 
+    void OnDestroy()
+    {
+        unsubscribe();
+    }
+
+    private void subscribe()
+    {
+        IapStore store = IapStore.Instance;
+        if (store == null || store == subscribedStore)
+            return;
+        subscribedStore = store;
+        store.ProductsReady += CreateProductsUI;
+        store.PurchaseGranted += OnPurchaseGranted;
+        store.PurchaseFailed += OnPurchaseFailed;
+        store.PurchaseDeferred += OnPurchaseDeferred;
+    }
+
+    private void unsubscribe()
+    {
+        if (subscribedStore == null)
+            return;
+        subscribedStore.ProductsReady -= CreateProductsUI;
+        subscribedStore.PurchaseGranted -= OnPurchaseGranted;
+        subscribedStore.PurchaseFailed -= OnPurchaseFailed;
+        subscribedStore.PurchaseDeferred -= OnPurchaseDeferred;
+        subscribedStore = null;
+    }
+
     private void updatePickUpsCount()
     {
-        BuyDiamonds(0);
-        BuyDoublePoints(0);
-        BuyBolts(0);
-        BuyChances(0);
-        BuyBoxes(0);
+        diamondsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getDiamondsCount());
+        doublePointsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getDoublePointsCount());
+        boltsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getBoltsCount());
+        chancesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getChancesCount());
+        boxesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getBoxesCount());
     }
 
     public void Back()
@@ -89,218 +84,99 @@ public class PurchaseMenu : MonoBehaviour, IStoreListener
 
     private void CreateProductsUI()
     {
-        // Chances
         foreach (ProductItem p in products)
         {
-            // P2-03: CreateProductsUI() runs from BOTH OnEnable and OnInitialized, so without
+            // P2-03: CreateProductsUI() runs from BOTH OnEnable and ProductsReady, so without
             // this unsubscribe the handler stacked up once per store visit and a single Buy tap
-            // fired controller.InitiatePurchase() once for every previous visit.
+            // started one purchase for every previous visit.
             // Unsubscribing a delegate that was never added is a safe no-op.
             p.OnPurchase -= HandlePurchase;
             p.OnPurchase += HandlePurchase;
-            p.Setup(controller?.products.WithID(p.productId));
+            p.Setup(IapStore.Instance != null ? IapStore.Instance.GetProduct(p.productId) : null);
         }
-        // loadingText.gameObject.SetActive(false);
-        // contentRect.gameObject.SetActive(true);
     }
 
     private void HandlePurchase(Product product, Action OnPurchaseCompleted)
     {
-        if (product == null)
+        // Set before starting: a store may report the outcome before Purchase() returns.
+        this.OnPurchaseCompleted = OnPurchaseCompleted;
+        if (IapStore.Instance == null || !IapStore.Instance.Purchase(product))
         {
             confirmationDialog.setConfirmationDialog("Purchase Failed", "Couldn't find the IAP product.", false);
-            OnPurchaseCompleted?.Invoke();
-            OnPurchaseCompleted = null;
-        }
-        else
-        {
-            this.OnPurchaseCompleted = OnPurchaseCompleted;
-            controller.InitiatePurchase(product);
+            finishPurchaseUI();
         }
     }
 
     public void BuyItem(Product product)
     {
-        controller.InitiatePurchase(product);
+        if (IapStore.Instance != null)
+            IapStore.Instance.Purchase(product);
     }
 
-    public void BuyDiamonds(int amount)
+    // The scene still has old "BuyButton"s wired to these, with amounts, inside sections that
+    // are switched off (Content/Bolts, /Diamonds, /Double Points, /Chances, /Other/Ads). They
+    // used to add the amount for free. Real grants now happen only in IapStore, so these only
+    // refresh the counters and ignore the amount, in case one of those sections is ever
+    // switched back on.
+    public void BuyDiamonds(int amount) { ignoredGrant(amount); }
+    public void BuyDoublePoints(int amount) { ignoredGrant(amount); }
+    public void BuyBolts(int amount) { ignoredGrant(amount); }
+    public void BuyChances(int amount) { ignoredGrant(amount); }
+    public void BuyBoxes(int amount) { ignoredGrant(amount); }
+
+    private void ignoredGrant(int amount)
     {
-        PlayerStats.Instance.addDiamonds(amount);
-        diamondsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getDiamondsCount());
+        if (amount != 0)
+            Debug.LogWarning("PurchaseMenu: a legacy Buy button tried to grant " + amount +
+                             " for free. Ignored - grants only come from IapStore.");
+        updatePickUpsCount();
     }
 
-    public void BuyDoublePoints(int amount)
+    private void OnPurchaseGranted(string productId)
     {
-        PlayerStats.Instance.addDoublePoints(amount);
-        doublePointsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getDoublePointsCount());
+        updatePickUpsCount();
+        finishPurchaseUI();
     }
 
-    public void BuyBolts(int amount)
+    private void OnPurchaseFailed(string productId, PurchaseFailureReason reason)
     {
-        PlayerStats.Instance.addBolts(amount);
-        boltsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getBoltsCount());
+        finishPurchaseUI();
+        if (reason == PurchaseFailureReason.UserCancelled)
+            confirmationDialog.setConfirmationDialog("Purchase Canceled", "Purchase canceled by the user", false);
+        else
+            confirmationDialog.setConfirmationDialog("Purchase Failed", "Purchase failed for some reason, please try again later.", false);
     }
 
-    public void BuyChances(int amount)
+    private void OnPurchaseDeferred(string productId)
     {
-        PlayerStats.Instance.addChances(amount);
-        chancesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getChancesCount());
+        finishPurchaseUI();
+        confirmationDialog.setConfirmationDialog("Purchase Pending",
+            "Your payment is being processed. You will receive your purchase as soon as it completes.", false);
     }
 
-    public void BuyBoxes(int amount)
+    private void finishPurchaseUI()
     {
-        PlayerStats.Instance.addBoxes(amount);
-        boxesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getBoxesCount());
-    }
-
-    public void OnInitializeFailed(InitializationFailureReason error)
-    {
-        Debug.LogError($"Error Initializing IAP because of {error}." +
-            $"\r\nShow a message to the player depending on the error.");
-        // loadingText.text = "Couldn't load products!";
-        // CreateProductsUI();
-    }
-
-    public void OnInitializeFailed(InitializationFailureReason error, string message)
-    {
-        Debug.LogError($"Error Initializing IAP because of {error}." +
-            $"\r\nShow a message to the player depending on the error.");
-        // loadingText.text = "Couldn't load products!";
-        // CreateProductsUI();
-    }
-
-    public PurchaseProcessingResult ProcessPurchase(PurchaseEventArgs purchaseEvent)
-    {
-        Debug.Log($"Successfully purchased {purchaseEvent.purchasedProduct.definition.id}");
-        OnPurchaseCompleted?.Invoke();
+        Action done = OnPurchaseCompleted;
         OnPurchaseCompleted = null;
-
-        // TODO
-        // Debug.Log("Quantity = " + purchaseEvent.purchasedProduct.definition.payouts.ToList().Count);
-
-        var productId = purchaseEvent.purchasedProduct.definition.id;
-        switch (productId)
-        {
-            case "remove_ads":
-                AdmobManager.Instance.HideBannerAd();
-                PlayerStats.Instance.setAdsEnabled(false);
-                break;
-
-            case "chances_1":
-                BuyChances(5);
-                break;
-            case "chances_2":
-                BuyChances(25);
-                break;
-            case "chances_3":
-                BuyChances(50);
-                break;
-            case "chances_4":
-                BuyChances(100);
-                break;
-
-            case "bolts_1":
-                BuyBolts(5);
-                break;
-            case "bolts_2":
-                BuyBolts(25);
-                break;
-            case "bolts_3":
-                BuyBolts(50);
-                break;
-            case "bolts_4":
-                BuyBolts(100);
-                break;
-
-            case "double_points_1":
-                BuyDoublePoints(5);
-                break;
-            case "double_points_2":
-                BuyDoublePoints(25);
-                break;
-            case "double_points_3":
-                BuyDoublePoints(50);
-                break;
-            case "double_points_4":
-                BuyDoublePoints(100);
-                break;
-
-            case "diamonds_1":
-                BuyDiamonds(5000);
-                break;
-            case "diamonds_2":
-                BuyDiamonds(25000);
-                break;
-            case "diamonds_3":
-                BuyDiamonds(100000);
-                break;
-            case "diamonds_4":
-                BuyDiamonds(200000);
-                break;
-
-            case "boxes_1":
-                BuyBoxes(5);
-                break;
-            case "boxes_2":
-                BuyBoxes(25);
-                break;
-            case "boxes_3":
-                BuyBoxes(50);
-                break;
-            case "boxes_4":
-                BuyBoxes(100);
-                break;
-        }
-
-        return PurchaseProcessingResult.Complete;
-    }
-
-    public void OnPurchaseFailed(Product product, PurchaseFailureReason failureReason)
-    {
-        Debug.Log($"Failed to purchase {product.definition.id} because {failureReason}");
-        OnPurchaseCompleted?.Invoke();
-        OnPurchaseCompleted = null;
-        switch (failureReason)
-        {
-            case PurchaseFailureReason.UserCancelled:
-                confirmationDialog.setConfirmationDialog("Purchase Canceled", "Purchase canceled by the user", false);
-                break;
-            default:
-                confirmationDialog.setConfirmationDialog("Purchase Failed", "Purchase failed for some reason, please try again later.", false);
-                break;
-        }
-    }
-
-    public void OnInitialized(IStoreController controller, IExtensionProvider extensions)
-    {
-        this.controller = controller;
-        this.extensions = extensions;
-        CreateProductsUI();
+        done?.Invoke();
     }
 
     public void RestorePurchases()
     {
-        if (extensions == null)
+        if (IapStore.Instance == null)
         {
             confirmationDialog.setConfirmationDialog("Restoration failed", "Couldn't restore your purchases.", false);
+            return;
         }
-        else
+
+        IapStore.Instance.RestorePurchases(ok =>
         {
-            extensions.GetExtension<IAppleExtensions>().RestoreTransactions((result, str) =>
-            {
-                if (result)
-                {
-                    // This does not mean anything was restored,
-                    // merely that the restoration process succeeded.
-                    confirmationDialog.setConfirmationDialog("Restoration succeeded", "Your purchases have been restored.", false);
-                }
-                else
-                {
-                    // Restoration failed.
-                    confirmationDialog.setConfirmationDialog("Restoration failed", "Couldn't restore your purchases.", false);
-                }
-            });
-        }
+            if (ok)
+                // This does not mean anything was restored, merely that the restoration
+                // process succeeded.
+                confirmationDialog.setConfirmationDialog("Restoration succeeded", "Your purchases have been restored.", false);
+            else
+                confirmationDialog.setConfirmationDialog("Restoration failed", "Couldn't restore your purchases.", false);
+        });
     }
 }
