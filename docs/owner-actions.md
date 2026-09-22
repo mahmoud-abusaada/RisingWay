@@ -156,7 +156,11 @@ AdMob shows you in 1.3.
 
 ## 4. Unity Editor — needs the GUI
 
-### 4.1 Add the Privacy Options button — **BLOCKS RELEASE** (P2-07)
+### 4.1 Add the Privacy Options button — ✅ done (2026-09-17, commit 1e2f1ef)
+
+The menu command below was run and the button is in the scene; it is described here in case the
+Settings panel is rebuilt.
+
 
 Google requires EEA/UK users to be able to change consent from inside the app, and **the
 published consent form already promises this button exists** - it tells users to "look for a link
