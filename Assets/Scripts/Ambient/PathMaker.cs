@@ -72,7 +72,7 @@ public class PathMaker : MonoBehaviour
     private Parts spiralTurn;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     // Development builds: with a file called "try-patterns" in the game's files folder
-    // (adb shell touch /sdcard/Android/data/com.AbuSada.RisingWay/files/try-patterns) every run
+    // (adb shell touch /sdcard/Android/data/com.abusaada.risingway/files/try-patterns) every run
     // has every pattern from the start, to try them without playing up to a score of 500.
     // MovementProbe sets it with -probeAllPatterns.
     public static bool PreviewAllPatterns;

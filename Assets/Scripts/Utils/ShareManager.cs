@@ -7,7 +7,9 @@ using UnityEngine;
 public class ShareManager : MonoBehaviour
 {
     public static ShareManager Instance;
-    private string gameLink = "\nAndroid: https://play.google.com/store/apps/details?id=com.AbuSada.RisingWay" + "\n" +
+    // The Android link follows the package name, so a rename cannot leave it pointing at the old
+    // listing (it did: the package became com.abusaada.risingway for the 2026 relaunch).
+    private string gameLink = "\nAndroid: https://play.google.com/store/apps/details?id=" + Application.identifier + "\n" +
                               "iOS: https://apps.apple.com/us/app/rising-way/id6473210923";
     private bool isProcessing = false;
 
@@ -144,7 +146,9 @@ public class ShareManager : MonoBehaviour
 
             object[] providerParams = new object[3];
             providerParams[0] = currentActivity;
-            providerParams[1] = "com.AbuSada.RisingWay.provider";
+            // The manifest declares this provider as "<application id>.provider", so read it from
+            // there rather than writing the package name out again.
+            providerParams[1] = Application.identifier + ".provider";
             providerParams[2] = fileObject;
 
             //instead of parsing the uri, will get the uri from file using FileProvider

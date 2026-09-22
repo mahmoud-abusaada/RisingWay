@@ -221,19 +221,25 @@ Command-line builds cannot run while the Editor holds the project open.
   the game, so neither collected anything. Firebase Analytics covers analytics; Cloud Diagnostics
   is the only crash reporting the game has, so it stays until Firebase Crashlytics replaces it.
 
-- **Package name stays `com.AbuSada.RisingWay`.** On Google Play the package name *is* the app;
-  it cannot be renamed, and a new one is a brand-new app. It is also bound to
-  `google-services.json`, all 21 IAP products and existing Remove Ads purchases. Lowercase would
-  be purely cosmetic.
+- ~~**Package name stays `com.AbuSada.RisingWay`.**~~ **Reversed on 2026-09-23: the package is now
+  `com.abusaada.risingway`** and the relaunch goes out as a new Play app. The original reasoning -
+  that a new package throws away installs, ratings and Remove Ads purchases - turned out not to
+  apply: the app has been delisted for two years, has few installs, no Remove Ads buyers and
+  effectively no ratings, so there was nothing to keep. Against that, the old name did not even
+  match the domain (`AbuSada` against `abusaada.com`), and the owner wants `com.abusaada.*` across
+  the portfolio. The first upload locks the name to that app forever, so this was the last chance.
+  Release date carries no weight: Play ranks on recent installs, ratings and engagement, and the
+  date users see on a listing is "Updated", not "Released".
 
 ## 7. Before the iOS build (on the Mac)
 
-- **The iOS bundle ID does not match Firebase.** Unity's iOS identifier is
-  `com.Abu-Sa-da.Rising-Way`, but `Assets/GoogleService-Info.plist` is registered for
-  `com.AbuSada.RisingWay`. Firebase will not initialise on iOS until they agree. Check which
-  bundle ID the live App Store app (`id6473210923`) actually uses: keep that one, and download a
-  matching `GoogleService-Info.plist` from the Firebase console if needed. Do **not** change the
-  App Store app's bundle ID - that has the same can't-rename rule as Android.
+- **The iOS bundle ID needs a decision of its own.** It was `com.Abu-Sa-da.Rising-Way` while
+  `Assets/GoogleService-Info.plist` was registered for `com.AbuSada.RisingWay`, so the two never
+  agreed and Firebase could not initialise on iOS. With the Android rename it is now set to
+  `com.abusaada.risingway` for consistency, **but that only holds if iOS also relaunches as a new
+  App Store record.** The same rule applies there: a bundle ID cannot be renamed on an existing
+  app. If the plan is to update the existing app (`id6473210923`) instead, set the identifier back
+  to whatever that record uses and take a matching `GoogleService-Info.plist` from Firebase.
 
 ## 8. Optional
 

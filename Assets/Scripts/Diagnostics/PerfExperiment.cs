@@ -4,7 +4,7 @@
 // To run it, create an empty file called "perf-cycle" in the game's files folder, then launch a
 // development build:
 //
-//   adb shell touch /sdcard/Android/data/com.AbuSada.RisingWay/files/perf-cycle
+//   adb shell touch /sdcard/Android/data/com.abusaada.risingway/files/perf-cycle
 //
 // It waits for the menu and starts a run with auto-pilot on and tutorials off. Nobody touches the
 // screen - a tap would turn the ball - and each step is held for 15 seconds:
