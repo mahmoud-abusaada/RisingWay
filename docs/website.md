@@ -29,6 +29,22 @@ The `.php` extension is meaningless. This is a static file that happens to be na
 `_headers` sets the correct `Content-Type`, and Unity does not care either way since it parses
 `downloadHandler.text`.
 
+## The version numbers can take the game off the air
+
+`androidForceUpdateVersion` and `androidUpdateVersion` are compared against the **version code of
+the installed build** (`VersionCode.GetVersionCode()`, read by `MainMenu.ShowUpdateDialog`). If a
+number here is higher than the build's version code, that build shows the update dialog, and the
+force one leaves quitting as the only button. Setting these above the live version code takes every
+install out of service until the file is corrected.
+
+They were 20, from the old app. The 2026 relaunch starts again at version code 1
+(`com.abusaada.risingway`), so they are **1**: below every shipped build, which arms the mechanism
+without triggering it. Raise them only to the version code of a build that is already live, and
+only when older builds really must be retired.
+
+Installs of the old app poll this same file. With these numbers they see no prompt at all, which is
+the intent: their dialog would open the store page for the old package, which no longer exists.
+
 ## What is in `web/`
 
 `web/` is the deploy folder and holds **only public files** - everything in it is published.
