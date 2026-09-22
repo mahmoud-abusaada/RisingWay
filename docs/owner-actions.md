@@ -30,6 +30,18 @@ Every ad request currently fails with this. Check, in order:
   Rising Way is currently delisted, so full approval may only complete after the relaunch. Test
   ads keep working in the meantime.
 
+### 1.2b Point the existing AdMob app at the new listing (2026-09-23)
+
+The relaunch uses a new package (`com.abusaada.risingway`, see section 6), but **AdMob does not need
+a second app**: App settings → App store details has *Clear shop details* and an editable package
+name, so the existing entry can be repointed. That keeps App ID
+`ca-app-pub-4724664365967541~1578717732` and every ad unit ID, so the project needs no changes.
+
+- Now: clear the shop details, set the package name to `com.abusaada.risingway`. The store search
+  only finds published listings, so the package name is all that can be set at this point.
+- After the new listing is live: link it under Google Play and press **Verify app**, so verification
+  and the pending review run against the new listing.
+
 ### 1.3 app-ads.txt
 
 AdMob → Apps → *Rising Way* → **app-ads.txt** shows one line to publish. It must be served from the
