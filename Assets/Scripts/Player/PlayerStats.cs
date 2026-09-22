@@ -325,7 +325,9 @@ public sealed class PlayerStats : ScriptableObject
 
     public float getMusicLevel()
     {
-        return PlayerPrefs.GetFloat(Utility.Constants.KEY_MUSIC_LEVEL, 0.5f);
+        // Silent on a fresh install: music is off until the player turns it up in Settings.
+        // Only the default - anyone who has ever moved the slider keeps their own level.
+        return PlayerPrefs.GetFloat(Utility.Constants.KEY_MUSIC_LEVEL, 0f);
     }
     public void setMusicLevel(float value)
     {
