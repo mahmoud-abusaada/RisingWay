@@ -216,7 +216,8 @@ public class MovementProbe : MonoBehaviour
             PathMaker pm = FindAnyObjectByType<PathMaker>();
             Debug.Log(TAG + "REVIVE: back on the track " + (Time.time - knockedOffAt).ToString("F2") +
                       "s after being knocked off, speed " + player.speed.ToString("F1") + ", first " + pm.startBlocksCount +
-                      " parts landed: " + pm.firstPartsHaveLanded(pm.startBlocksCount));
+                      " parts landed: " + pm.firstPartsHaveLanded(pm.startBlocksCount) +
+                      ", old path still being cleared: " + pm.isDestroyingOldPath);
             haveSegment = false; // measure afresh from here
             lastDirection = player.direction;
             lastStepPos = body.position;
@@ -702,6 +703,7 @@ public class MovementProbe : MonoBehaviour
                   "   game time: " + (Time.time - startedAt).ToString("F1", ci) + "s");
         if (boltRejoinTest)
             Debug.Log(TAG + "bolt rejoin test: " + rejoins + " times off the path and back, fell: " + fell);
+        Debug.Log(TAG + "parts that hurried to land before the ball: " + MoveDown.HurriedLandings);
         if (reviveTest)
             Debug.Log(TAG + "revive test: " + (!revived ? "the revive never completed"
                 : (fell ? "FELL AGAIN " : "no fall in ") + (turnErrors.Count - turnsAtRevive) + " turns after the revive"));

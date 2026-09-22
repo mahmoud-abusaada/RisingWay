@@ -240,39 +240,17 @@ public class PlayerMovement : MonoBehaviour
                 Utility.chanceIsOn = false;
             }
             pathMaker.startSpawningPathAfterChance(new Vector3(cameraController.transform.position.x, cameraController.transform.position.y - 0.6f, cameraController.transform.position.z), direction);
+            // Rolling again the moment it arrives, while the path may still be dropping into place:
+            // parts close ahead of the ball hurry down so it never reaches one in the air
+            // (MoveDown), so the player is not kept waiting.
             moveToPosition.MoveTransform(transform.position, cameraController.transform.position, 1, true, () =>
             {
-                StartCoroutine(releaseWhenPathHasLanded(cameraController.transform.position));
+                Utility.camFollowPlayer = true;
+                Utility.spawningAfterChance = false;
+                myRB.useGravity = true;
+                transform.position = cameraController.transform.position;
             });
         });
-    }
-
-    // After a revive the ball waits where it is until the new path under and ahead of it has
-    // dropped into place. It restarts at the speed it had when it fell, and at speed it reached
-    // parts that were still dropping - and fell again straight after being revived.
-    private IEnumerator releaseWhenPathHasLanded(Vector3 holdAt)
-    {
-        float waitingSince = Time.time;
-        while (!pathMaker.firstPartsHaveLanded(pathMaker.startBlocksCount))
-        {
-            // The run was left meanwhile (Utility.resetFlags): nothing to release.
-            if (!Utility.gameStarted || !Utility.spawningAfterChance)
-                yield break;
-            // Hold still: gravity is off, but a part landing on the ball pushes it.
-            transform.position = holdAt;
-            myRB.linearVelocity = Vector3.zero;
-            myRB.angularVelocity = Vector3.zero;
-            yield return new WaitForFixedUpdate();
-        }
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        // The path is built to be down before the ball arrives; a wait here means it was not.
-        Debug.Log("[Revive] the ball waited " + (Time.time - waitingSince).ToString("F2") + " s for the path to land");
-#endif
-        Utility.camFollowPlayer = true;
-        Utility.spawningAfterChance = false;
-        myRB.useGravity = true;
-        transform.position = holdAt;
     }
 
     public void turnRight()

@@ -55,7 +55,7 @@ public class PathMaker : MonoBehaviour
     private const int SPIRAL_TURNS = 4;
     private const int SHORT_CLIMB_LEGS = 3;
     private int patternTier;
-    private float partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
+    private Transform pathBeingDestroyed;
     private bool spiralsUnlocked, shortClimbsUnlocked;
     private int spiralTurnsLeft, shortClimbsLeft;
     private Parts spiralTurn;
@@ -133,7 +133,6 @@ public class PathMaker : MonoBehaviour
         landPatterns.Add("R", new ArrayList { Parts.LandRight });
         landPatterns.Add("L", new ArrayList { Parts.LandLeft });
         patternTier = 0;
-        partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
         spiralsUnlocked = shortClimbsUnlocked = false;
         spiralTurnsLeft = shortClimbsLeft = 0;
 
@@ -202,23 +201,24 @@ public class PathMaker : MonoBehaviour
         }
     }
 
-    public void createStartGround(float secondsBetweenParts = 0.15f, float dropSeconds = MoveDown.DEFAULT_DROP_SECONDS)
+    public void createStartGround()
     {
         if (startGroundCoroutine != null)
             StopCoroutine(startGroundCoroutine);
-        startGroundCoroutine = spawnStartBlocks(secondsBetweenParts, dropSeconds);
+        startGroundCoroutine = spawnStartBlocks();
         StartCoroutine(startGroundCoroutine);
     }
 
-    IEnumerator spawnStartBlocks(float secondsBetweenParts = 0.15f, float dropSeconds = MoveDown.DEFAULT_DROP_SECONDS)
+    private const float START_BLOCK_SECONDS = 0.15f;
+
+    IEnumerator spawnStartBlocks()
     {
-        partDropSeconds = dropSeconds;
         float started = Time.time;
         for (spawnedStraightCount = 0; spawnedStraightCount < startBlocksCount; spawnedStraightCount++)
         {
             // Each part at its own time, several in one frame if frames are slow, so a slow phone
-            // does not stretch the sequence - the revived ball is waiting for its end.
-            while (Time.time - started < spawnedStraightCount * secondsBetweenParts)
+            // does not stretch the sequence and leave the path behind the ball.
+            while (Time.time - started < spawnedStraightCount * START_BLOCK_SECONDS)
                 yield return null;
 
             if (spawnedStraightCount < straightPathLength - 1)
@@ -234,12 +234,13 @@ public class PathMaker : MonoBehaviour
 
             updatePartsRenderQueue();
         }
-        partDropSeconds = MoveDown.DEFAULT_DROP_SECONDS;
     }
 
     public void spawnPart()
     {
-        if (isDestroyingOldPath)
+        // Nothing to add to a path that is being taken down. A revive builds a new path while the
+        // old one may still be going, and that one must get all its parts.
+        if (isDestroyingOldPath && currentGamePathParent == pathBeingDestroyed)
             return;
 
         if (!isStoppingBolt && spawnedPartsWithBolt > Utility.getBoltDistance() && lastSpawnedPart.CompareTag("CurveSt"))
@@ -488,7 +489,6 @@ public class PathMaker : MonoBehaviour
         }
 
         part.GetComponent<MoveDown>().setPreviousPart(nextPart);
-        part.GetComponent<MoveDown>().setDropSeconds(partDropSeconds);
 
         nextPart = part;
 
@@ -745,6 +745,7 @@ public class PathMaker : MonoBehaviour
     {
         isDestroyingOldPath = true;
         Transform oldPathParent = currentGamePathParent;
+        pathBeingDestroyed = oldPathParent;
         oldPathParent.name += " - Destroying Old Path";
         StartCoroutine(destroyOldPath(oldPathParent));
     }
@@ -809,10 +810,10 @@ public class PathMaker : MonoBehaviour
         lastSpawnedPart = null;
         directions.Clear();
         pickedLandsPattern = null;
-        // Much faster than at the start of a run: the 15 parts are down 0.72 s after this, and
-        // the revived ball takes 1 s to reach its place, so it never has to wait for them
-        // (PlayerMovement.releaseWhenPathHasLanded holds it if it ever would).
-        createStartGround(0.03f, 0.3f);
+        // The revived ball rolls on before this path is all down: its parts hurry to land ahead of
+        // it until the last one is in (placed over startBlocksCount x 0.15 s, 0.5 s to drop).
+        MoveDown.HurryUntil = Time.time + startBlocksCount * START_BLOCK_SECONDS + 1f;
+        createStartGround();
     }
 
     public void boltPickedUp()
