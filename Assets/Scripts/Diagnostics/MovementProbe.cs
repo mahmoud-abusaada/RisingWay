@@ -98,20 +98,24 @@ public class MovementProbe : MonoBehaviour
     // -probeBoltRejoin: every few turns, turn the ball off the path as a player reaching for a bolt
     // would, run sideways for a few steps, then do what picking the bolt up does
     // (PlayerMovement.rejoinPathAt). The ball must carry on along the path.
-    private bool boltRejoinTest;
-    private int rejoins, sidewaysSteps = -1, turnsAtLastRejoin;
+    private bool boltRejoinTest, pushingSideways;
+    private int rejoins, turnsAtLastRejoin;
+    private Vector3 sidewaysFrom;
     private Transform rejoinPart;
-    private const int SIDEWAYS_STEPS = 4;
+    // How far off the centre line the ball is when the bolt takes over. A bolt sits at its part's
+    // centre and the ball collects it within about 0.7 of that, so it can be no further out.
+    private const float SIDEWAYS_DISTANCE = 0.7f;
 
     private void BoltRejoinStep()
     {
-        if (sidewaysSteps >= 0)
+        if (pushingSideways)
         {
-            if (++sidewaysSteps < SIDEWAYS_STEPS)
+            Vector3 moved = body.position - sidewaysFrom;
+            if (new Vector2(moved.x, moved.z).magnitude < SIDEWAYS_DISTANCE)
                 return;
             player.rejoinPathAt(rejoinPart);
             rejoins++;
-            sidewaysSteps = -1;
+            pushingSideways = false;
             turnsAtLastRejoin = turnErrors.Count;
             return;
         }
@@ -125,8 +129,9 @@ public class MovementProbe : MonoBehaviour
             under.collider.attachedRigidbody == null)
             return;
         rejoinPart = under.collider.attachedRigidbody.transform;
+        sidewaysFrom = p;
         player.turnRight(); // off the path, as if towards a bolt
-        sidewaysSteps = 0;
+        pushingSideways = true;
     }
 
     private static Vector3 Forward(Directions d)

@@ -379,10 +379,11 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// Picking up a bolt puts the ball back on the path: heading the way the path goes at
-    /// <paramref name="part"/>, on that part's centre line. A player who turned off the path to
-    /// reach a bolt used to carry on sideways at bolt speed and fall. Arriving the normal way on a
-    /// turn part, the ball still turns on the centre, like every automatic turn.
+    /// Picking up a bolt faces the ball the way the path goes at <paramref name="part"/>. A player
+    /// who turned off the path to reach a bolt used to carry on sideways at bolt speed and fall.
+    /// Only the direction: moving the ball onto the part's centre line as well looked like the
+    /// bolt shoving it sideways, and the next automatic turn puts it back on the centre anyway.
+    /// Arriving the normal way on a turn part, the ball still turns on the centre, as before.
     /// </summary>
     public void rejoinPathAt(Transform part)
     {
@@ -405,8 +406,6 @@ public class PlayerMovement : MonoBehaviour
         }
         if (turnPart && direction == outgoing)
             partTurnedOn = part; // turned for this part: taps on it must not turn the ball again
-
-        moveOntoCentreLine(part);
     }
 
     // The way the path enters a part: PathMaker turns each part so its own X axis points that way
@@ -427,27 +426,6 @@ public class PlayerMovement : MonoBehaviour
         else
             for (int i = 0; i < quartersRight; i++)
                 turnRight();
-    }
-
-    // Onto the part's centre line for the current direction, at the height the ball rests there.
-    private void moveOntoCentreLine(Transform part)
-    {
-        Vector3 p = myRB.position;
-        if (direction == Directions.North || direction == Directions.South)
-            p.x = part.position.x;
-        else
-            p.z = part.position.z;
-
-        RaycastHit hit;
-        Vector3 origin = new Vector3(p.x, p.y + GROUND_PROBE_LIFT, p.z);
-        if (Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, GROUND_PROBE_LIFT + 1f,
-                               groundMask, QueryTriggerInteraction.Ignore)
-            && hit.normal.y >= MIN_GROUND_NORMAL_Y)
-            p.y = origin.y - hit.distance;
-
-        myRB.position = p;
-        Vector3 v = myRB.linearVelocity;
-        myRB.linearVelocity = new Vector3(v.x, 0f, v.z);
     }
 
     /// <summary>The ball is being stopped where it is (tutorial): let the track hold it up again.</summary>

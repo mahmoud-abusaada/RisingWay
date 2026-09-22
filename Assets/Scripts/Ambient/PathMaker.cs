@@ -54,6 +54,17 @@ public class PathMaker : MonoBehaviour
     public const int TOP_PATTERN_TIER = 5;
     private const int SPIRAL_TURNS = 4;
     private const int SHORT_CLIMB_LEGS = 3;
+    // Every pick-up sits this far above the track: the height the flat parts always had, with the
+    // diamond's point just touching it. The others sat higher (slide 0.03, curve up 0.11, curve out
+    // 0.29), and height decides how far off the centre line the ball can be and still collect it:
+    // its centre rolls 0.25 above the track and a pick-up's trigger reaches 0.45 from its own
+    // centre, 0.45 above the pick-up. At this height that is 0.68 of room, against 0.50 on the
+    // curve out - the one that was being missed.
+    private const float PICKUP_HEIGHT = -0.05f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private static readonly HashSet<string> pickUpHeightsReported = new HashSet<string>();
+#endif
+
     private int patternTier;
     private Transform pathBeingDestroyed;
     private bool spiralsUnlocked, shortClimbsUnlocked;
@@ -505,6 +516,7 @@ public class PathMaker : MonoBehaviour
         }
 
         setPartPosition(part);
+        placePickUpAboveSurface(part);
     }
 
     int index = 1;
@@ -543,6 +555,33 @@ public class PathMaker : MonoBehaviour
                 part.GetComponent<Renderer>().material = MaterialsManager.Instance.getFadeMaterial(part.GetComponent<Renderer>().material, renderQueue);
             else
                 part.GetComponent<Renderer>().material = MaterialsManager.Instance.getLitMaterial(part.GetComponent<Renderer>().material, renderQueue);
+    }
+
+    // Every pick-up the same height above the track it sits on. PartsPool places it a fixed height
+    // above the part's pivot, which is a different height above the surface on each shape - on the
+    // curve out it sat high enough that a ball running a little off the centre line passed under it.
+    private void placePickUpAboveSurface(Transform part)
+    {
+        Transform pickUp = part.Find("PickUp");
+        if (pickUp == null)
+            return;
+
+        Physics.SyncTransforms(); // the part has just been moved into place
+        Vector3 p = pickUp.position;
+        RaycastHit hit;
+        // Only this part's own surface counts: the ball, or a part of a lower lap of a spiral, can
+        // be under the ray as well.
+        if (!Physics.Raycast(new Vector3(p.x, part.position.y + 5f, p.z), Vector3.down, out hit, 10f,
+                             Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
+            || !hit.collider.transform.IsChildOf(part))
+            return;
+
+        pickUp.position = new Vector3(p.x, hit.point.y + PICKUP_HEIGHT, p.z);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (pickUpHeightsReported.Add(part.tag))
+            Debug.Log("[PickUp] on " + part.tag + ": was " + (p.y - hit.point.y).ToString("F2") +
+                      " above the track, now " + PICKUP_HEIGHT.ToString("F2"));
+#endif
     }
 
     private void setPartPosition(Transform part)
