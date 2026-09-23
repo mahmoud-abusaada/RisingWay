@@ -48,7 +48,19 @@ public static class RisingWayBuilder
     public static void BuildAndroidApkDev()
     {
         EditorUserBuildSettings.buildAppBundle = false;
-        Build(ResolveOutput(DEFAULT_APK), true);
+        // Debug key: the upload keystore is configured now, and its password is never on hand here.
+        bool customKeystore = PlayerSettings.Android.useCustomKeystore;
+        PlayerSettings.Android.useCustomKeystore = false;
+        try
+        {
+            Build(ResolveOutput(DEFAULT_APK), true, false);
+        }
+        finally
+        {
+            PlayerSettings.Android.useCustomKeystore = customKeystore;
+            AssetDatabase.SaveAssets();
+        }
+        EditorApplication.Exit(lastBuildSucceeded ? 0 : 1);
     }
 
     /// <summary>
