@@ -259,43 +259,46 @@ public class IapStore : MonoBehaviour
 
     // ---- What each product gives -------------------------------------------------------------
 
-    // The quantities are the ones the game has always granted; the catalog only lists the ids.
+    /// <summary>
+    /// How much each pack gives. The one place that says so: Grant() pays it out and the shop
+    /// labels it (ProductItem.Setup), so a price change can never leave the shop advertising an
+    /// amount the game does not hand over. The prices these go with live in Play Console, and in
+    /// Resources/IAPProductCatalog.json for the Editor's fake store.
+    ///
+    /// Re-scaled on 2026-09-23, before the relaunch listed its products: each tier used to be
+    /// worth only ~37% more per pound than the entry pack, so there was no reason to buy above the
+    /// cheapest. Now the top tier is worth twice the entry one, on the usual 0.99 / 4.99 / 9.99 /
+    /// 19.99 price points.
+    /// </summary>
+    public static readonly Dictionary<string, int> PackAmounts = new Dictionary<string, int>
+    {
+        { "chances_1", 5 },        { "chances_2", 30 },        { "chances_3", 75 },        { "chances_4", 200 },
+        { "bolts_1", 5 },          { "bolts_2", 30 },          { "bolts_3", 75 },          { "bolts_4", 200 },
+        { "double_points_1", 5 },  { "double_points_2", 30 },  { "double_points_3", 75 },  { "double_points_4", 200 },
+        { "diamonds_1", 5000 },    { "diamonds_2", 35000 },    { "diamonds_3", 80000 },    { "diamonds_4", 200000 },
+        { "boxes_1", 3 },          { "boxes_2", 20 },          { "boxes_3", 50 },          { "boxes_4", 120 },
+    };
+
     private static void Grant(string productId)
     {
-        PlayerStats stats = PlayerStats.Instance;
-        switch (productId)
+        if (productId == REMOVE_ADS)
         {
-            case REMOVE_ADS: GrantRemoveAds(); break;
-
-            case "chances_1": stats.addChances(5); break;
-            case "chances_2": stats.addChances(25); break;
-            case "chances_3": stats.addChances(50); break;
-            case "chances_4": stats.addChances(100); break;
-
-            case "bolts_1": stats.addBolts(5); break;
-            case "bolts_2": stats.addBolts(25); break;
-            case "bolts_3": stats.addBolts(50); break;
-            case "bolts_4": stats.addBolts(100); break;
-
-            case "double_points_1": stats.addDoublePoints(5); break;
-            case "double_points_2": stats.addDoublePoints(25); break;
-            case "double_points_3": stats.addDoublePoints(50); break;
-            case "double_points_4": stats.addDoublePoints(100); break;
-
-            case "diamonds_1": stats.addDiamonds(5000); break;
-            case "diamonds_2": stats.addDiamonds(25000); break;
-            case "diamonds_3": stats.addDiamonds(100000); break;
-            case "diamonds_4": stats.addDiamonds(200000); break;
-
-            case "boxes_1": stats.addBoxes(5); break;
-            case "boxes_2": stats.addBoxes(25); break;
-            case "boxes_3": stats.addBoxes(50); break;
-            case "boxes_4": stats.addBoxes(100); break;
-
-            default:
-                Debug.LogError("IAP: no grant defined for product '" + productId + "'. The player paid and got nothing.");
-                break;
+            GrantRemoveAds();
+            return;
         }
+
+        int amount;
+        PlayerStats stats = PlayerStats.Instance;
+        if (PackAmounts.TryGetValue(productId, out amount))
+        {
+            if (productId.StartsWith("chances")) { stats.addChances(amount); return; }
+            if (productId.StartsWith("bolts")) { stats.addBolts(amount); return; }
+            if (productId.StartsWith("double_points")) { stats.addDoublePoints(amount); return; }
+            if (productId.StartsWith("diamonds")) { stats.addDiamonds(amount); return; }
+            if (productId.StartsWith("boxes")) { stats.addBoxes(amount); return; }
+        }
+
+        Debug.LogError("IAP: no grant defined for product '" + productId + "'. The player paid and got nothing.");
     }
 
     private static void GrantRemoveAds()
