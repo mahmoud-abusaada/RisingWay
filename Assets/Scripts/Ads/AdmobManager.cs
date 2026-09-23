@@ -22,7 +22,8 @@ public class AdmobManager : MonoBehaviour
 #if UNITY_IPHONE
             "96e23e80653bb28980d3f40beb58915c",
 #elif UNITY_ANDROID
-            "702815ACFC14FF222DA1DC767672A573"
+            "702815ACFC14FF222DA1DC767672A573",
+            "D3F02A8197FE6BDC6B3E73AF7168125B", // Samsung S20 Ultra (developer's phone), from the SDK's log line
 #endif
         };
 
