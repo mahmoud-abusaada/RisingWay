@@ -129,12 +129,41 @@ public class PlayerFall : MonoBehaviour
         SoundManager.Instance.setFilter();
     }
 
+    // Whether there is track under the ball: four rays straight down, any one finding solid track
+    // that is still in place.
+    //
+    // It used to accept any collider. The project's physics queries hit triggers, and a track part
+    // keeps its trigger (and shows its end blocks) while it falls away after being knocked down -
+    // so a ball falling together with the parts that had been under it counted as grounded, and
+    // the run did not end: the camera followed it down for seconds. Now triggers never count, and
+    // neither does anything belonging to a part that is falling away.
+    private readonly RaycastHit[] groundHits = new RaycastHit[8];
+
     private bool IsGrounded()
     {
-        return Physics.Raycast(transform.position + new Vector3(radiusToCheck, 0, 0), -Vector3.up, distToGround) ||
-               Physics.Raycast(transform.position + new Vector3(-radiusToCheck, 0, 0), -Vector3.up, distToGround) ||
-               Physics.Raycast(transform.position + new Vector3(0, 0, radiusToCheck), -Vector3.up, distToGround) ||
-               Physics.Raycast(transform.position + new Vector3(0, 0, -radiusToCheck), -Vector3.up, distToGround);
+        return trackBelow(new Vector3(radiusToCheck, 0, 0)) ||
+               trackBelow(new Vector3(-radiusToCheck, 0, 0)) ||
+               trackBelow(new Vector3(0, 0, radiusToCheck)) ||
+               trackBelow(new Vector3(0, 0, -radiusToCheck));
+    }
+
+    private bool trackBelow(Vector3 offset)
+    {
+        int n = Physics.RaycastNonAlloc(transform.position + offset, -Vector3.up, groundHits, distToGround,
+                                        Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < n; i++)
+            if (!isFallingAway(groundHits[i].collider.transform))
+                return true;
+        return false;
+    }
+
+    // Destroyer.destroy() renames the part it knocks down; the collider may sit a level or two below it.
+    private static bool isFallingAway(Transform t)
+    {
+        for (int depth = 0; t != null && depth < 4; depth++, t = t.parent)
+            if (t.name == Utility.Constants.DESTROYING_OBJECT_NAME)
+                return true;
+        return false;
     }
 
     private bool shouldShowRevive()
