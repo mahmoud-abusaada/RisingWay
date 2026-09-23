@@ -3,8 +3,11 @@
 // The previous version was structurally incompatible with AGP 9 and not worth patching:
 //   - declared repositories here (google, jcenter, and six ad-network mavens). jcenter is dead,
 //     and repository declaration has moved to settingsTemplate.gradle
-//   - compileSdkVersion / minSdkVersion / targetSdkVersion  ->  compileSdk / minSdk / targetSdk
-//   - aaptOptions -> androidResources, lintOptions -> lint, dexOptions removed entirely
+//   - the old "...Version" forms of compileSdk / minSdk / targetSdk were renamed to those
+//   - the old aapt and lint option blocks became androidResources and lint; the dex options
+//     block was removed entirely
+//   (Written without the old names on purpose: Unity's template upgrader find-and-replaces them
+//   even inside comments, and kept rewriting these lines.)
 //   - JavaVersion.VERSION_1_8 -> VERSION_17
 //   - a hand-added dependency block pulling com.android.support:appcompat-v7:28.0.0 and
 //     androidx.core:core:1.0.1. The support library cannot coexist with modern AGP, and
