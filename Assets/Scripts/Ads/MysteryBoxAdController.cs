@@ -89,6 +89,7 @@ public class MysteryBoxAdController : MonoBehaviour
                                         reward.Amount,
                                         reward.Type));
                 PlayerStats.Instance.addBoxes(1);
+                GameAnalytics.RewardEarned("mystery_box");
                 getShopMenu().MysteryBoxClick();
             });
         }

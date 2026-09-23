@@ -44,10 +44,12 @@ public class PlayerFall : MonoBehaviour
             transform.localRotation = Quaternion.Euler(0, 0, 15);
             if (Utility.chanceIsOn && !Utility.spawningAfterChance)
             {
+                GameAnalytics.Revived("chance");
                 startRespawn();
             }
             if (!Utility.chanceIsOn && shouldShowRevive())
             {
+                GameAnalytics.ReviveOffered(scoreManager.getScore());
                 menusController.hideStackMenus();
                 menusController.showAndAddMenuToStack(Menus.ReviveMenu);
             }
@@ -76,6 +78,10 @@ public class PlayerFall : MonoBehaviour
         // without this they would only reach disk on backgrounding or quit. An interstitial may
         // be about to take over the process, which is exactly when we want the write already done.
         PlayerStats.Instance.Flush();
+
+        // Before GameOverMenu, which is where a new high score gets written.
+        int score = scoreManager.getScore();
+        GameAnalytics.RunEnded(score, PlayerStats.Instance.getHighScore(), scoreManager.getDiamondsCollected(), scoreManager.patternTierFor(score));
 
         numberOfLosesAfterAd++;
         if (numberOfLosesAfterAd % Random.Range(4, 7) == 0 || numberOfLosesAfterAd > 7)

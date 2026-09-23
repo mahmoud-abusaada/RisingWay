@@ -46,6 +46,7 @@ public class GraphicsManager : MonoBehaviour
         maxFpsToggle.onValueChanged.AddListener(value =>
         {
             PlayerStats.Instance.setFramesLimit(value ? 1 : 0);
+            GameAnalytics.SettingChanged("max_fps", value ? 1 : 0);
             applyFrames(value);
         });
 
@@ -55,6 +56,7 @@ public class GraphicsManager : MonoBehaviour
         hdrToggle.onValueChanged.AddListener(value =>
         {
             PlayerStats.Instance.setEmissionState(value);
+            GameAnalytics.SettingChanged("hdr", value ? 1 : 0);
             urpAsset.supportsHDR = value;
         });
 
@@ -69,6 +71,7 @@ public class GraphicsManager : MonoBehaviour
             showFpsToggle.onValueChanged.AddListener(value =>
             {
                 PlayerStats.Instance.setShowFpsState(value);
+                GameAnalytics.SettingChanged("show_fps", value ? 1 : 0);
                 if (fpsCounter != null)
                     fpsCounter.SetVisible(value);
             });

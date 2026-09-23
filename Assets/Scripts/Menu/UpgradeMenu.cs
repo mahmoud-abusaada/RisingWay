@@ -211,6 +211,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 doublePointsLevel++;
                 updateUI();
+                GameAnalytics.Upgraded("double_points", PlayerStats.Instance.getDoublePointsLevel(), Utility.Constants.DOUBLE_POINTS_UPGRADE_PRICE);
             }
         }
         else
@@ -231,6 +232,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 boltLevel++;
                 updateUI();
+                GameAnalytics.Upgraded("bolt", PlayerStats.Instance.getBoltLevel(), Utility.Constants.BOLT_UPGRADE_PRICE);
             }
         }
         else
@@ -251,6 +253,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 chanceLevel++;
                 updateUI();
+                GameAnalytics.Upgraded("chance", PlayerStats.Instance.getChanceLevel(), Utility.Constants.CHANCE_UPGRADE_PRICE);
             }
         }
         else

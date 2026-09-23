@@ -179,6 +179,7 @@ public class ShopMenu : MonoBehaviour
             isMysteryBoxSeeking = true;
             MysteryBoxPrize prize = MysteryBoxPrizes.Roll(materialsManager, playerStats.getBoxesSinceCosmetic());
             grantPrize(prize);
+            GameAnalytics.MysteryBoxOpened(prize);
             playerStats.setBoxesSinceCosmetic(MysteryBoxPrizes.IsCosmetic(prize.kind) ? 0 : playerStats.getBoxesSinceCosmetic() + 1);
             playerStats.subtractBoxes();
             playerStats.Flush();
@@ -208,8 +209,14 @@ public class ShopMenu : MonoBehaviour
             case PrizeKind.Bolts: playerStats.addBolts(prize.amount); break;
             case PrizeKind.DoublePoints: playerStats.addDoublePoints(prize.amount); break;
             case PrizeKind.Chances: playerStats.addChances(prize.amount); break;
-            case PrizeKind.Floor: materialsManager.unlockFloor(prize.cosmetic.id); break;
-            case PrizeKind.Ball: materialsManager.unlockBall(prize.cosmetic.id); break;
+            case PrizeKind.Floor:
+                materialsManager.unlockFloor(prize.cosmetic.id);
+                GameAnalytics.CosmeticUnlocked("floor", prize.cosmetic.id, "box", 0);
+                break;
+            case PrizeKind.Ball:
+                materialsManager.unlockBall(prize.cosmetic.id);
+                GameAnalytics.CosmeticUnlocked("ball", prize.cosmetic.id, "box", 0);
+                break;
         }
     }
 
@@ -229,6 +236,7 @@ public class ShopMenu : MonoBehaviour
     {
         if (!MultiClickHandler.Instance.CanClick()) return;
         confirmationDialog.setInfoDialog("Mystery Box Odds", MysteryBoxPrizes.OddsText(materialsManager), 30f);
+        GameAnalytics.OddsViewed("shop");
     }
 
     void setContentHeight()
@@ -317,6 +325,7 @@ public class ShopMenu : MonoBehaviour
                     applySelectedBall(id);
                     removeLock(materialsManager.getBallKey(id));
                     subtractDiamonds(selectedMaterial.price);
+                    GameAnalytics.CosmeticUnlocked("ball", id, "diamonds", selectedMaterial.price);
                 });
             }
             else
@@ -332,6 +341,7 @@ public class ShopMenu : MonoBehaviour
 
     private void applySelectedBall(int id)
     {
+        GameAnalytics.CosmeticSelected("ball", id);
         materialsManager.setSelectedBallMaterial(id);
         setCurrentBallMaterial();
         animateSelectedItem(materialsManager.getBallKey(id));
@@ -354,6 +364,7 @@ public class ShopMenu : MonoBehaviour
                     applySelectedFloor(id);
                     removeLock(materialsManager.getFloorKey(id));
                     subtractDiamonds(selectedMaterial.price);
+                    GameAnalytics.CosmeticUnlocked("floor", id, "diamonds", selectedMaterial.price);
                 });
             }
             else
@@ -369,6 +380,7 @@ public class ShopMenu : MonoBehaviour
 
     private void applySelectedFloor(int id)
     {
+        GameAnalytics.CosmeticSelected("floor", id);
         materialsManager.setSelectedFloorMaterial(id);
         setCurrentFloorMaterial();
         animateSelectedItem(materialsManager.getFloorKey(id));

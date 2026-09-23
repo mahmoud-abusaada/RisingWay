@@ -62,6 +62,7 @@ public class MenusOperations : MonoBehaviour
             ambientEffectsController.setDaySkyColor();
         ambientEffectsController.onGameStarted();
         playerStats.addTimesPlayed();
+        GameAnalytics.RunStarted(playerStats.getTimesPlayed(), playerStats.isTutorialsOn(), playerStats.getGamePlayMode().ToString());
         cameraController.resetFov();
         scoreManager.initScoreManager();
         pickUpsManager.initPickupsManager();

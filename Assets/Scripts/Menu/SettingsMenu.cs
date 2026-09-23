@@ -204,7 +204,11 @@ public class SettingsMenu : MonoBehaviour
 
     private void autoPilotToggleValueChanged() => PlayerStats.Instance.setAutoPilotState(autoPilotToggle.isOn);
 
-    private void tutorialsToggleValueChanged() => PlayerStats.Instance.setTutorialsState(tutorialsToggle.isOn);
+    private void tutorialsToggleValueChanged()
+    {
+        PlayerStats.Instance.setTutorialsState(tutorialsToggle.isOn);
+        GameAnalytics.TutorialToggled(tutorialsToggle.isOn);
+    }
 
     private void stayInSpaceToggleValueChanged() => PlayerStats.Instance.setStayInSpaceState(stayInSpaceToggle.isOn);
 

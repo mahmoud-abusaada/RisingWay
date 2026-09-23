@@ -180,6 +180,7 @@ public class InGameUI : MonoBehaviour
         if (!Utility.userCanPause)
             return;
 
+        GameAnalytics.Paused();
         menusController.hideStackMenus();
         menusController.showAndAddMenuToStack(Menus.PauseMenu);
     }
@@ -291,6 +292,7 @@ public class InGameUI : MonoBehaviour
 
         scoreText.gameObject.SetActive(true);
         PlayerStats.Instance.setTutorialsState(false);
+        GameAnalytics.TutorialComplete();
 
         // yield return new WaitForSecondsRealtime(1);
 
@@ -306,6 +308,7 @@ public class InGameUI : MonoBehaviour
 
     public void FinishTutorial()
     {
+        GameAnalytics.TutorialSkipped();
         // AutoTurn();
         if (tutorialsInfo.alpha > 0)
             tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
@@ -608,6 +611,7 @@ public class InGameUI : MonoBehaviour
             return;
 
         PlayerStats.Instance.subtractBolts();
+        GameAnalytics.PowerUpUsed("bolt");
         boltsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getBoltsCount());
         pickUpsManager.activateBolt();
     }
@@ -618,6 +622,7 @@ public class InGameUI : MonoBehaviour
             return;
 
         PlayerStats.Instance.subtractDoublePoints();
+        GameAnalytics.PowerUpUsed("double_points");
         doublePointsOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getDoublePointsCount());
         pickUpsManager.activateDoublePoint();
     }
@@ -628,6 +633,7 @@ public class InGameUI : MonoBehaviour
             return;
 
         PlayerStats.Instance.subtractChances();
+        GameAnalytics.PowerUpUsed("chance");
         chancesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getChancesCount());
         pickUpsManager.activateChance();
     }

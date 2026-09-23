@@ -299,6 +299,9 @@ public sealed class PlayerStats : ScriptableObject
     }
     public void setGamePlayMode(GamePlayMode gamePlayMode)
     {
+        // Only real changes: the settings screen re-selects the current mode every time it opens.
+        if (Data.gamePlayMode != gamePlayMode.ToString())
+            GameAnalytics.ControlModeChanged(gamePlayMode.ToString());
         Data.gamePlayMode = gamePlayMode.ToString();
         SaveSystem.Save();
     }

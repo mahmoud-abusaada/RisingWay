@@ -104,9 +104,11 @@ public class PurchaseMenu : MonoBehaviour
     {
         // Set before starting: a store may report the outcome before Purchase() returns.
         this.OnPurchaseCompleted = OnPurchaseCompleted;
+        GameAnalytics.PurchaseStarted(product != null ? product.definition.id : null);
         if (IapStore.Instance == null || !IapStore.Instance.Purchase(product))
         {
             // Almost always the store not being reachable yet, not a missing product.
+            GameAnalytics.StoreUnavailable();
             confirmationDialog.setConfirmationDialog("Store Unavailable",
                 "Couldn't reach Google Play. Check your connection and try again.", false);
             if (IapStore.Instance != null)
@@ -142,12 +144,14 @@ public class PurchaseMenu : MonoBehaviour
 
     private void OnPurchaseGranted(string productId)
     {
+        GameAnalytics.PurchaseDone(productId);
         updatePickUpsCount();
         finishPurchaseUI();
     }
 
     private void OnPurchaseFailed(string productId, PurchaseFailureReason reason)
     {
+        GameAnalytics.PurchaseFailed(productId, reason.ToString());
         finishPurchaseUI();
         if (reason == PurchaseFailureReason.UserCancelled)
             confirmationDialog.setConfirmationDialog("Purchase Canceled", "Purchase canceled by the user", false);
@@ -157,6 +161,7 @@ public class PurchaseMenu : MonoBehaviour
 
     private void OnPurchaseDeferred(string productId)
     {
+        GameAnalytics.PurchaseFailed(productId, "Pending");
         finishPurchaseUI();
         confirmationDialog.setConfirmationDialog("Purchase Pending",
             "Your payment is being processed. You will receive your purchase as soon as it completes.", false);
@@ -175,6 +180,7 @@ public class PurchaseMenu : MonoBehaviour
         if (!MultiClickHandler.Instance.CanClick()) return;
         confirmationDialog.setInfoDialog("Mystery Box Odds",
             MysteryBoxPrizes.OddsText(FindAnyObjectByType<MaterialsManager>()), 30f);
+        GameAnalytics.OddsViewed("purchase");
     }
 
     public void RestorePurchases()

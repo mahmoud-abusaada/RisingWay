@@ -372,5 +372,6 @@ public class IapStore : MonoBehaviour
         if (AdmobManager.Instance != null)
             AdmobManager.Instance.HideBannerAd();
         PlayerStats.Instance.setAdsEnabled(false);
+        GameAnalytics.UserProperty("ads_removed", "1");
     }
 }

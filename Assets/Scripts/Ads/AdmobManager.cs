@@ -333,10 +333,28 @@ public class AdmobManager : MonoBehaviour
     // They also must not reach the controllers early - InterstitialAdController.ShowAd() quietly
     // calls LoadAd() when nothing is loaded, which would bypass the consent gate.
 
+    /// <summary>
+    /// No interstitials for a new player's first runs. The 2024 release showed one every 4-7
+    /// deaths from the very first run - runs are short, so a first-time player could meet a
+    /// full-screen ad within a couple of minutes, before deciding whether they liked the game.
+    /// Rewarded ads (revive, mystery box) are the player's choice and are not held back.
+    /// </summary>
+    public const int AD_FREE_RUNS = 10;
+
     public void ShowInterstitialAd(Action doOnClose)
     {
+        int runs = PlayerStats.Instance.getTimesPlayed();
+        if (runs <= AD_FREE_RUNS)
+        {
+            GameAnalytics.AdSkippedForNewPlayer(runs);
+            doOnClose?.Invoke();
+            return;
+        }
         if (_adsReady && PlayerStats.Instance.isAdEnabled())
+        {
+            GameAnalytics.AdShown("interstitial", "game_over");
             interstitialController.ShowAd(doOnClose);
+        }
         else
             doOnClose?.Invoke();
     }
@@ -349,7 +367,10 @@ public class AdmobManager : MonoBehaviour
     public void ShowMysteryBoxAd()
     {
         if (_adsReady)
+        {
+            GameAnalytics.AdShown("rewarded", "mystery_box");
             mysteryBoxAdController.ShowAd();
+        }
     }
 
     public void LoadReviveAd()
@@ -360,7 +381,10 @@ public class AdmobManager : MonoBehaviour
     public void ShowReviveAd(Action doOnFail)
     {
         if (_adsReady)
+        {
+            GameAnalytics.AdShown("rewarded", "revive");
             reviveAdController.ShowAd(doOnFail);
+        }
         else
             doOnFail?.Invoke();
     }

@@ -40,6 +40,7 @@ public class ReviveMenu : MonoBehaviour
 
     public void RevivePlayer()
     {
+        GameAnalytics.Revived("ad");
         playerFall.showInGameUi();
         playerFall.startRespawn();
         playerFall.numberOfRevives++;
@@ -49,6 +50,7 @@ public class ReviveMenu : MonoBehaviour
     {
         if (!MultiClickHandler.Instance.CanClick()) return;
 
+        GameAnalytics.ReviveSkipped();
         playerFall.endGame();
     }
 

@@ -81,6 +81,8 @@ public class MenusController : MonoBehaviour
         if (UIFader.isFadingIn)
             return;
 
+        GameAnalytics.Screen(menu.ToString());
+
         hideCurrentMenu(true);
 
         switch (menu)
@@ -243,8 +245,6 @@ public class MenusController : MonoBehaviour
         player.gameObject.SetActive(false);
         adsManager.HideBannerAd();
         // shopMenu.GetComponent<ShopMenu>().initShopMenu();
-        Firebase.Analytics.FirebaseAnalytics
-          .LogEvent(Firebase.Analytics.FirebaseAnalytics.EventLogin);
     }
 
     private void hideShopMenu()

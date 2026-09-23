@@ -167,6 +167,7 @@ public class GameOverMenu : MonoBehaviour
     {
         if (!MultiClickHandler.Instance.CanClick()) return;
 
+        GameAnalytics.Shared(scoreManager.getScore());
         ShareManager.Instance.Share("Rising Way", "OMG! I got " + scoreManager.getScore() + " playing #RisingWay");
     }
 

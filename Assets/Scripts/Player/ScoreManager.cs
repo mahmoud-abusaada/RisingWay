@@ -123,7 +123,7 @@ public class ScoreManager : MonoBehaviour
         pathMaker.unlockPatternsUpTo(patternTierFor(score));
     }
 
-    private int patternTierFor(int score)
+    public int patternTierFor(int score)
     {
         if (score > pathUpdateScore5) return 5;
         if (score > pathUpdateScore4) return 4;

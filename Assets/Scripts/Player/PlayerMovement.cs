@@ -206,6 +206,7 @@ public class PlayerMovement : MonoBehaviour
 
                 if (playerStats.isTutorialsOn())
                 {
+                    GameAnalytics.TutorialBegin();
                     startSpeed = Utility.Constants.TUTORIAL_PLAYER_SPEED;
                     if (inGameUi == null)
                         inGameUi = FindObjectOfType<InGameUI>();
