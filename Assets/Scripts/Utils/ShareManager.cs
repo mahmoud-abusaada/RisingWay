@@ -9,8 +9,10 @@ public class ShareManager : MonoBehaviour
     public static ShareManager Instance;
     // The Android link follows the package name, so a rename cannot leave it pointing at the old
     // listing (it did: the package became com.abusaada.risingway for the 2026 relaunch).
-    private string gameLink = "\nAndroid: https://play.google.com/store/apps/details?id=" + Application.identifier + "\n" +
-                              "iOS: https://apps.apple.com/us/app/rising-way/id6473210923";
+    // A property, not a field initializer: Unity forbids Application.identifier in a MonoBehaviour's
+    // constructor and throws, which left the link out of every share.
+    private string gameLink => "\nAndroid: https://play.google.com/store/apps/details?id=" + Application.identifier + "\n" +
+                               "iOS: https://apps.apple.com/us/app/rising-way/id6473210923";
     private bool isProcessing = false;
 
     void Awake()
