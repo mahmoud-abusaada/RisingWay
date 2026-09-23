@@ -128,6 +128,17 @@ public sealed class PlayerStats : ScriptableObject
         SaveSystem.Save();
     }
 
+    /// <summary>Boxes opened since the last ball or floor (the mystery box guarantee).</summary>
+    public int getBoxesSinceCosmetic()
+    {
+        return Data.boxesSinceCosmetic;
+    }
+    public void setBoxesSinceCosmetic(int count)
+    {
+        Data.boxesSinceCosmetic = Mathf.Max(0, count);
+        SaveSystem.Save();
+    }
+
     // ================================================================== progress
 
     public int getHighScore()

@@ -191,6 +191,37 @@ public class SoundManager : MonoBehaviour
     public void PlayBoltOn() { sfxSource.PlayOneShot(superSpeedOnAudio); }
     public void PlayBoltOff() { sfxSource.PlayOneShot(superSpeedOffAudio); }
     public void PlayBox() { sfxSource.PlayOneShot(boxAudio); }
+
+    // Mystery box reveal. Its own source so the ticks can rise in pitch without detuning the
+    // menu clicks that share menusSource; it follows the Menus volume.
+    private AudioSource revealSource;
+    private AudioSource RevealSource()
+    {
+        if (revealSource == null)
+        {
+            revealSource = gameObject.AddComponent<AudioSource>();
+            revealSource.playOnAwake = false;
+        }
+        revealSource.volume = menusSource.volume;
+        return revealSource;
+    }
+    public void PlayRevealTick(float pitch)
+    {
+        AudioSource s = RevealSource();
+        s.pitch = pitch;
+        s.PlayOneShot(menuAudio, 0.8f);
+    }
+    public void PlayRevealWin(PrizeRarity rarity)
+    {
+        AudioSource s = RevealSource();
+        s.pitch = 1f;
+        s.PlayOneShot(boxAudio);
+        if (rarity >= PrizeRarity.Epic)
+            sfxSource.PlayOneShot(superSpeedOnAudio, 0.7f);
+        else if (rarity == PrizeRarity.Rare)
+            sfxSource.PlayOneShot(chanceOnAudio, 0.6f);
+    }
+    public void PlayRevealCollect() { sfxDiamondSource.PlayOneShot(diamondAudio); }
     public void PlayBack() { menusSource.PlayOneShot(backAudio); }
     public void PlayMenu() { menusSource.PlayOneShot(menuAudio); }
 }

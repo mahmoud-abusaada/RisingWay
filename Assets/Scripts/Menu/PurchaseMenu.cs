@@ -161,6 +161,14 @@ public class PurchaseMenu : MonoBehaviour
         done?.Invoke();
     }
 
+    /// <summary>The mystery box odds, next to the box packs: Play policy wants them shown before purchase.</summary>
+    public void ShowMysteryBoxOdds()
+    {
+        if (!MultiClickHandler.Instance.CanClick()) return;
+        confirmationDialog.setInfoDialog("Mystery Box Odds",
+            MysteryBoxPrizes.OddsText(FindAnyObjectByType<MaterialsManager>()), 30f);
+    }
+
     public void RestorePurchases()
     {
         if (IapStore.Instance == null)

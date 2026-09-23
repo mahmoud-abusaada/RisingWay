@@ -42,6 +42,13 @@ public class SaveData
     public int chances = 0;
     public int mysteryBoxes = 0;
 
+    /// <summary>
+    /// Boxes opened since the last ball or floor: the count behind the guarantee
+    /// (MysteryBoxPrizes.PITY_BOXES). Added after schema 1 shipped; an older save simply lacks
+    /// it and JsonUtility leaves it at 0, which is the right starting value, so no migration.
+    /// </summary>
+    public int boxesSinceCosmetic = 0;
+
     // ---------------------------------------------------------------- progress
     public int highScore = 0;
     public int timesPlayed = 0;

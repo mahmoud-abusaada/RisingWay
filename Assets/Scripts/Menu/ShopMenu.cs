@@ -66,10 +66,18 @@ public class ShopMenu : MonoBehaviour
         currentAppliedFloorMaterial = materialsManager.getSelectedFloorMaterial();
         setCurrentBallMaterial();
         setCurrentFloorMaterial();
+
+        // The ODDS button sits over the list, where the stock translucent grey disappears.
+        Transform odds = mysteryBoxRect.Find("OddsButton");
+        if (odds != null && odds.GetComponent<Image>() != null)
+            odds.GetComponent<Image>().color = new Color(0.09f, 0.11f, 0.17f, 0.92f);
     }
 
     void OnEnable()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        MysteryBoxRevealTest.Apply(playerStats);
+#endif
         diamondsCount = playerStats.getDiamondsCount();
         diamondsCountText.text = Utility.getFormatedNumber(diamondsCount);
         prepareMysteryBoxButton();
@@ -139,8 +147,28 @@ public class ShopMenu : MonoBehaviour
         setContentHeight();
     }
 
-    private IEnumerator mysteryBoxRandomChoiceCoroutine;
+    // ---- Mystery box ---------------------------------------------------------------------------
+    // What a box gives is MysteryBoxPrizes' job and how it is shown is MysteryBoxReveal's. Here
+    // the prize is rolled, paid out, the box used up and the save written, all before the
+    // animation starts: skipping the animation or the app dying half-way cannot lose the prize
+    // or hand it out twice. (The old sequence granted on its last flash and used the box up a
+    // second later.)
     public bool isMysteryBoxSeeking = false;
+    private MysteryBoxReveal mysteryBoxReveal;
+
+    private MysteryBoxReveal reveal()
+    {
+        if (mysteryBoxReveal == null)
+        {
+            mysteryBoxReveal = gameObject.AddComponent<MysteryBoxReveal>();
+            mysteryBoxReveal.Init((RectTransform)choicesContainer.parent, choicesContainer, choiceCount,
+                                  mysteryBoxRect, diamondsCountText.transform, materialsManager, mystreyBoxEffect,
+                                  listContainer.gameObject);
+            choicesContainer.parent.gameObject.AddComponent<MysteryBoxRevealTap>().reveal = mysteryBoxReveal;
+        }
+        return mysteryBoxReveal;
+    }
+
     public void MysteryBoxClick()
     {
         if (isMysteryBoxSeeking)
@@ -148,12 +176,22 @@ public class ShopMenu : MonoBehaviour
 
         if (playerStats.getBoxesCount() > 0)
         {
-            choicesContainer.parent.GetComponent<Animation>().Play("ShowChoices");
             isMysteryBoxSeeking = true;
-            startMysteryBoxRandomSeeking();
-            Utility.disableAllChilds(choicesContainer);
-            if (playerStats.getBoxesCount() == 1)
+            MysteryBoxPrize prize = MysteryBoxPrizes.Roll(materialsManager, playerStats.getBoxesSinceCosmetic());
+            grantPrize(prize);
+            playerStats.setBoxesSinceCosmetic(MysteryBoxPrizes.IsCosmetic(prize.kind) ? 0 : playerStats.getBoxesSinceCosmetic() + 1);
+            playerStats.subtractBoxes();
+            playerStats.Flush();
+            if (playerStats.getBoxesCount() == 0)
                 adsManager.LoadMysteryBoxAd();
+
+            reveal().Play(prize,
+                () => prizeCollected(prize),
+                () =>
+                {
+                    isMysteryBoxSeeking = false;
+                    prepareMysteryBoxButton();
+                });
         }
         else if (playerStats.getBoxesCount() == 0 && mysteryBoxAdLoaded)
         {
@@ -162,162 +200,35 @@ public class ShopMenu : MonoBehaviour
         }
     }
 
-    private void startMysteryBoxRandomSeeking()
+    private void grantPrize(MysteryBoxPrize prize)
     {
-        // if (mysteryBoxRandomChoiceCoroutine == null)
-        //     mysteryBoxRandomChoiceCoroutine = mysteryBoxRandomChoice();
-        // else
-        //     StopCoroutine(mysteryBoxRandomChoiceCoroutine);
-
-        if (mysteryBoxRandomChoiceCoroutine != null)
-            StopCoroutine(mysteryBoxRandomChoiceCoroutine);
-
-        mysteryBoxRandomChoiceCoroutine = mysteryBoxRandomChoice();
-
-        StartCoroutine(mysteryBoxRandomChoiceCoroutine);
+        switch (prize.kind)
+        {
+            case PrizeKind.Diamonds: playerStats.addDiamonds(prize.amount); break;
+            case PrizeKind.Bolts: playerStats.addBolts(prize.amount); break;
+            case PrizeKind.DoublePoints: playerStats.addDoublePoints(prize.amount); break;
+            case PrizeKind.Chances: playerStats.addChances(prize.amount); break;
+            case PrizeKind.Floor: materialsManager.unlockFloor(prize.cosmetic.id); break;
+            case PrizeKind.Ball: materialsManager.unlockBall(prize.cosmetic.id); break;
+        }
     }
 
-    private IEnumerator mysteryBoxRandomChoice()
+    // The visible side of the grant, once the reveal has "delivered" it.
+    private void prizeCollected(MysteryBoxPrize prize)
     {
-        int times = 0;
-        int index = 0;
-        int oldIndex = 0;
-        float timeToWait = 0.05f;
-        bool pickedNewChoice = false;
-        bool lastTime = false;
-        int choiceAmount = -1;
-        while (times < Utility.Constants.MYTERYBOX_RANDOM_SEEKING_TIMES)
-        {
-            timeToWait = 0.5f / (Utility.Constants.MYTERYBOX_RANDOM_SEEKING_TIMES - times);
-            if (timeToWait < 0.06f)
-                timeToWait = 0.06f;
+        if (prize.kind == PrizeKind.Diamonds)
+            shouldUpdateDiamonds = true; // the counter rolls up to the new balance
+        else if (prize.kind == PrizeKind.Floor)
+            removeLock(materialsManager.getFloorKey(prize.cosmetic.id));
+        else if (prize.kind == PrizeKind.Ball)
+            removeLock(materialsManager.getBallKey(prize.cosmetic.id));
+    }
 
-            times++;
-            lastTime = times == Utility.Constants.MYTERYBOX_RANDOM_SEEKING_TIMES;
-            choicesContainer.GetChild(index).gameObject.SetActive(false);
-
-            oldIndex = index;
-            pickedNewChoice = false;
-            while (!pickedNewChoice ||
-                    (index == oldIndex && oldIndex < 4) ||
-                    (index == 4 && materialsManager.getLockedFloorsList().Count == 0) ||
-                    (index == 5 && materialsManager.getLockedBallsList().Count == 0))
-            {
-                if (lastTime)
-                {
-                    // The real choice
-                    int randomValue = Random.Range(0, 100);
-                    index = randomValue switch
-                    {
-                        // Bolts case 10%
-                        int n when n is >= 24 and < 34 => 1,
-                        // Double Points case 10%
-                        int n when n is >= 14 and < 24 => 2,
-                        // Chances case 8%
-                        int n when n is >= 6 and < 14 => 3,
-                        // Floor case 3%
-                        int n when n is >= 0 and < 3 => 4,
-                        // Ball case 3%
-                        int n when n is >= 3 and < 6 => 5,
-                        // Else Diamond
-                        _ => 0,
-                    };
-                }
-                else
-                {
-                    index = Random.Range(0, 6);
-                }
-
-                if (!pickedNewChoice)
-                    pickedNewChoice = true;
-            }
-
-            if (lastTime)
-            {
-                if (index == 0) // Diamonds
-                {
-                    choiceAmount = Random.Range(10, 100) * 10;
-                    choiceAmount -= choiceAmount % 100;
-                    // StartCoroutine(addDiamondsAnimation(playerStats.getDiamondsCount(), choiceAmount));
-                    addDiamonds(choiceAmount);
-                    // playerStats.addDiamonds(choiceAmount);
-                }
-                else if (index == 1) // Bolts
-                {
-                    choiceAmount = Random.Range(1, 6);
-                    playerStats.addBolts(choiceAmount);
-                }
-                else if (index == 2) // Double Points
-                {
-                    choiceAmount = Random.Range(1, 6);
-                    playerStats.addDoublePoints(choiceAmount);
-                }
-                else if (index == 3) // Chances
-                {
-                    choiceAmount = Random.Range(1, 6);
-                    playerStats.addChances(choiceAmount);
-                }
-            }
-
-            if (index == 4) // Floor
-            {
-                BaseMaterial m = materialsManager.getLockedFloorsList()[Random.Range(0, materialsManager.getLockedFloorsList().Count)];
-                if (m is PatternMaterial)
-                    choicesContainer.GetChild(index).GetComponent<Renderer>().material = (m as PatternMaterial).landItem;
-                else
-                    choicesContainer.GetChild(index).GetComponent<Renderer>().material = (m as ColorMaterial).material;
-
-                if (lastTime)
-                {
-                    materialsManager.unlockFloor(m.id);
-                    removeLock(materialsManager.getFloorKey(m.id));
-                }
-            }
-
-            if (index == 5) // Ball
-            {
-                ColorMaterial m = materialsManager.getLockedBallsList()[Random.Range(0, materialsManager.getLockedBallsList().Count)];
-                choicesContainer.GetChild(index).GetComponent<Renderer>().material = m.material;
-
-                if (lastTime)
-                {
-                    materialsManager.unlockBall(m.id);
-                    removeLock(materialsManager.getBallKey(m.id));
-                }
-            }
-
-            choicesContainer.GetChild(index).GetComponent<Renderer>().material = materialsManager.getStencilledMaterial(choicesContainer.GetChild(index).GetComponent<Renderer>().material, 3000);
-
-            if (index == 5)
-            {
-                choicesContainer.GetChild(index).GetComponent<Moons>().setMoons();
-                choicesContainer.GetChild(index).GetComponent<PlayerLinkedObjectsController>().prepareLinkedObjects();
-            }
-            else
-            {
-                choicesContainer.GetChild(5).GetComponent<Moons>().clearMoons();
-            }
-
-            choicesContainer.GetChild(index).gameObject.SetActive(true);
-
-            if (lastTime && choiceAmount != -1)
-            {
-                yield return new WaitForSecondsRealtime(0.3f);
-                choiceCount.text = Utility.getFormatedNumber(choiceAmount);
-                choicesContainer.parent.GetComponent<Animation>().Play("ShowAmount");
-            }
-            yield return new WaitForSecondsRealtime(timeToWait);
-        }
-        yield return new WaitForSecondsRealtime(0.15f);
-        choicesContainer.parent.GetComponent<Animation>().Play("BubblePop");
-        mystreyBoxEffect.Play();
-        yield return new WaitForSecondsRealtime(0.5f);
-        choicesContainer.parent.GetComponent<Animation>().Play("HideChoices");
-        yield return new WaitForSecondsRealtime(0.15f);
-        choiceCount.transform.parent.gameObject.SetActive(false);
-        playerStats.subtractBoxes();
-        prepareMysteryBoxButton();
-        isMysteryBoxSeeking = false;
+    /// <summary>The odds, as Play policy requires them shown before a box is bought.</summary>
+    public void ShowMysteryBoxOdds()
+    {
+        if (!MultiClickHandler.Instance.CanClick()) return;
+        confirmationDialog.setInfoDialog("Mystery Box Odds", MysteryBoxPrizes.OddsText(materialsManager), 30f);
     }
 
     void setContentHeight()
@@ -566,6 +477,7 @@ public class ShopMenu : MonoBehaviour
         itemOnClick.canvasCamera = canvasCamera;
         itemOnClick.id = ballMaterial.id;
         itemOnClick.confirmationDialog = confirmationDialog;
+        itemOnClick.shopMenu = this;
         itemOnClick.unityEvent.AddListener(selectBall);
 
         if (mBalls.Count % 2 == 0)
@@ -621,6 +533,7 @@ public class ShopMenu : MonoBehaviour
         itemOnClick.canvasCamera = canvasCamera;
         itemOnClick.id = floorMaterial.id;
         itemOnClick.confirmationDialog = confirmationDialog;
+        itemOnClick.shopMenu = this;
         itemOnClick.unityEvent.AddListener(selectFloor);
 
         if (mFloors.Count % 2 == 0)

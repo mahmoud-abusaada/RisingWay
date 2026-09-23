@@ -12,7 +12,7 @@ public class ObjectOnClick : MonoBehaviour
     [SerializeField] public Camera canvasCamera;
     [SerializeField] public ConfirmationDialog confirmationDialog;
 
-    private ShopMenu shopMenu;
+    public ShopMenu shopMenu; // set by the ShopMenu that creates the item: the scene has a second, unwired ShopMenu
     private bool pressDown = false;
     private Vector3 pressDownPosition = Vector3.zero;
     private bool pressUp = false;
@@ -22,11 +22,21 @@ public class ObjectOnClick : MonoBehaviour
 
     void Start()
     {
-        shopMenu = FindObjectOfType<ShopMenu>();
+        if (shopMenu == null)
+            shopMenu = FindObjectOfType<ShopMenu>();
     }
 
     void Update()
     {
+        // While a mystery box is open, presses belong to the reveal. They used to be recorded
+        // here anyway and fire the moment the box closed, opening a "buy this ball?" dialog the
+        // player never asked for.
+        if (shopMenu != null && shopMenu.isMysteryBoxSeeking)
+        {
+            clearPress();
+            return;
+        }
+
         if (Input.GetMouseButtonDown(0))
         {
             RaycastHit hit;
@@ -38,10 +48,7 @@ public class ObjectOnClick : MonoBehaviour
                 Vector2 localPoint;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(scrollViewRect, Input.mousePosition, Camera.main, out localPoint);
 
-                Vector2 mysteryLocalPoint;
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(mysteryBoxRect, Input.mousePosition, Camera.main, out mysteryLocalPoint);
-
-                if (raycast && (hit.transform.parent.gameObject == gameObject || hit.transform.parent.parent.gameObject == gameObject) && scrollViewRect.rect.Contains(localPoint) && !mysteryBoxRect.rect.Contains(mysteryLocalPoint))
+                if (raycast && (hit.transform.parent.gameObject == gameObject || hit.transform.parent.parent.gameObject == gameObject) && scrollViewRect.rect.Contains(localPoint) && !overMysteryBox(Input.mousePosition))
                 {
                     // Debug.Log("Hit gameObejct " + hit.transform.parent.gameObject.name + " clicked Down at " + gameObject.name);
                     pressDown = true;
@@ -61,10 +68,7 @@ public class ObjectOnClick : MonoBehaviour
                 Vector2 localPoint;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(scrollViewRect, Input.mousePosition, Camera.main, out localPoint);
 
-                Vector2 mysteryLocalPoint;
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(mysteryBoxRect, Input.mousePosition, Camera.main, out mysteryLocalPoint);
-
-                if (raycast && (hit.transform.parent.gameObject == gameObject || hit.transform.parent.parent.gameObject == gameObject) && scrollViewRect.rect.Contains(localPoint) && !mysteryBoxRect.rect.Contains(mysteryLocalPoint))
+                if (raycast && (hit.transform.parent.gameObject == gameObject || hit.transform.parent.parent.gameObject == gameObject) && scrollViewRect.rect.Contains(localPoint) && !overMysteryBox(Input.mousePosition))
                 {
                     // Debug.Log("Hit gameObejct " + hit.transform.parent.gameObject.name + " clicked Up at " + gameObject.name);
                     pressUp = true;
@@ -95,6 +99,36 @@ public class ObjectOnClick : MonoBehaviour
             }
             catch (UnityException) { }
         }
+    }
+
+    // The box button and anything attached to it (the ODDS button sticks out past its edge).
+    private bool overMysteryBox(Vector3 screenPoint)
+    {
+        if (mysteryBoxRect == null || !mysteryBoxRect.gameObject.activeInHierarchy)
+            return false;
+        if (RectTransformUtility.RectangleContainsScreenPoint(mysteryBoxRect, screenPoint, Camera.main))
+            return true;
+        foreach (Transform child in mysteryBoxRect)
+        {
+            RectTransform r = child as RectTransform;
+            if (r != null && child.gameObject.activeInHierarchy && child.GetComponent<UnityEngine.UI.Selectable>() != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(r, screenPoint, Camera.main))
+                return true;
+        }
+        return false;
+    }
+
+    void OnDisable()
+    {
+        clearPress(); // hidden mid-press (the list is switched off during a reveal): start clean
+    }
+
+    private void clearPress()
+    {
+        pressDown = false;
+        pressUp = false;
+        pressDownPosition = Vector3.zero;
+        pressUpPosition = Vector3.zero;
     }
 
     bool IsPointInRT(Vector3 point, RectTransform rt)
