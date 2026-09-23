@@ -780,6 +780,11 @@ public class PathMaker : MonoBehaviour
         }
     }
 
+    public bool isOnCurrentPath(Transform part)
+    {
+        return currentGamePathParent != null && part.parent == currentGamePathParent;
+    }
+
     public void startDestroyingOldPath()
     {
         isDestroyingOldPath = true;
@@ -795,30 +800,48 @@ public class PathMaker : MonoBehaviour
         currentGamePathParent.parent = pathParent;
     }
 
+    // Knocks each part of the old path down once, one every 0.05 s, then gives them a few seconds
+    // to fall away (Destroyer pools a part 50 below where it stood) and pools any still left.
+    //
+    // It used to loop until the path was empty, calling destroy() again, every 0.05 s, on parts
+    // that were already falling - which, with the ball back in play, wiped the new path (see
+    // Destroyer.destroy) - and it could not finish while any part was held up.
+    private const float OLD_PATH_FALL_SECONDS = 4f;
+
     private IEnumerator destroyOldPath(Transform oldPathParent)
     {
-        while (oldPathParent.childCount > 0)
+        List<Transform> parts = new List<Transform>();
+        foreach (Transform child in oldPathParent)
+            parts.Add(child);
+
+        foreach (Transform part in parts)
         {
-            int index = 0;
-            Transform child = oldPathParent.GetChild(index);
-            while (child.gameObject.name.Equals(Utility.Constants.DESTROYING_OBJECT_NAME))
-            {
-                index++;
-                if (oldPathParent.childCount > index)
-                {
-                    child = oldPathParent.GetChild(index);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            child.GetComponentInChildren<Destroyer>().destroy();
+            if (part == null || part.parent != oldPathParent || part.name.Equals(Utility.Constants.DESTROYING_OBJECT_NAME))
+                continue;
+            Destroyer destroyer = part.GetComponentInChildren<Destroyer>();
+            if (destroyer == null)
+                continue;
+            destroyer.destroy();
             yield return new WaitForSeconds(0.05f);
         }
+
+        for (float waited = 0f; oldPathParent.childCount > 0 && waited < OLD_PATH_FALL_SECONDS; waited += Time.deltaTime)
+            yield return null;
+
+        while (oldPathParent.childCount > 0)
+        {
+            Transform left = oldPathParent.GetChild(0);
+            Destroyer destroyer = left.GetComponentInChildren<Destroyer>();
+            if (destroyer != null)
+                destroyer.returnToPool();
+            else
+                partsPool.setPart(left);
+            if (left.parent == oldPathParent)
+                left.SetParent(null); // never loop on something the pool would not take
+        }
+
         isDestroyingOldPath = false;
         Destroy(oldPathParent.gameObject);
-        yield return null;
     }
 
     /// <summary>

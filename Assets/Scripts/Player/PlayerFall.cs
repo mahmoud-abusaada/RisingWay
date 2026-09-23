@@ -31,7 +31,11 @@ public class PlayerFall : MonoBehaviour
 
     void Update()
     {
-        if (Utility.gameStarted && !IsGrounded() && !Utility.spawningAfterChance && Utility.camFollowPlayer && !pathMaker.isDestroyingOldPath)
+        // Not held back while an old path is still being taken down: the ball is back on the new
+        // path by then, and a fall there has to count. It used to be, and a fall right after a
+        // revive went unnoticed - the camera following the ball down - until the old path was gone.
+        // camFollowPlayer and spawningAfterChance already cover the time the ball is being carried back.
+        if (Utility.gameStarted && !IsGrounded() && !Utility.spawningAfterChance && Utility.camFollowPlayer)
         {
             playerFell();
         }
