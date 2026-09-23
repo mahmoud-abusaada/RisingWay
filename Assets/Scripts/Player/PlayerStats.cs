@@ -323,6 +323,16 @@ public sealed class PlayerStats : ScriptableObject
         PlayerPrefs.SetInt(Utility.Constants.KEY_EMISSION_ON, on ? 1 : 0);
     }
 
+    // Off by default: the counter is for players who want it, not something everyone sees.
+    public bool isShowFpsOn()
+    {
+        return PlayerPrefs.GetInt(Utility.Constants.KEY_SHOW_FPS_ON, 0) == 1;
+    }
+    public void setShowFpsState(bool on)
+    {
+        PlayerPrefs.SetInt(Utility.Constants.KEY_SHOW_FPS_ON, on ? 1 : 0);
+    }
+
     public float getMusicLevel()
     {
         // Silent on a fresh install: music is off until the player turns it up in Settings.

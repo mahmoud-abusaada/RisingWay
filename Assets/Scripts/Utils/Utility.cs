@@ -45,6 +45,7 @@ public class Utility : MonoBehaviour
         public const string KEY_AUTO_PILOT_ON = "key_auto_pilot_on";
         public const string KEY_STAY_IN_SPACE_ON = "key_stay_in_space_on";
         public const string KEY_EMISSION_ON = "key_emission_on";
+        public const string KEY_SHOW_FPS_ON = "key_show_fps_on";
         public const string KEY_MUSIC_LEVEL = "key_music_level";
         public const string KEY_AMBIENT_LEVEL = "key_ambient_level";
         public const string KEY_SFX_LEVEL = "key_sfx_level";

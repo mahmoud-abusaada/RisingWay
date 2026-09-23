@@ -11,6 +11,7 @@ public class GraphicsManager : MonoBehaviour
     [SerializeField] private Slider densitySlider;
     [SerializeField] private Toggle maxFpsToggle;
     [SerializeField] private Toggle hdrToggle;
+    [SerializeField] private Toggle showFpsToggle;
 
     void Awake()
     {
@@ -56,6 +57,22 @@ public class GraphicsManager : MonoBehaviour
             PlayerStats.Instance.setEmissionState(value);
             urpAsset.supportsHDR = value;
         });
+
+        // The FPS counter used to be on for everyone, release builds included.
+        ShowFPS fpsCounter = FindAnyObjectByType<ShowFPS>(FindObjectsInactive.Include);
+        bool showFpsIsOn = PlayerStats.Instance.isShowFpsOn();
+        if (fpsCounter != null)
+            fpsCounter.SetVisible(showFpsIsOn);
+        if (showFpsToggle != null)
+        {
+            showFpsToggle.isOn = showFpsIsOn;
+            showFpsToggle.onValueChanged.AddListener(value =>
+            {
+                PlayerStats.Instance.setShowFpsState(value);
+                if (fpsCounter != null)
+                    fpsCounter.SetVisible(value);
+            });
+        }
     }
 
     private void applyFrames(bool maxIsOn)
