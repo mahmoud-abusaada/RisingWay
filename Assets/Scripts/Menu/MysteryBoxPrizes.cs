@@ -58,8 +58,11 @@ public static class MysteryBoxPrizes
     /// <summary>
     /// The guarantee: this many boxes in a row without a ball or floor, and the next one gives
     /// one (a ball or a floor, even chance, from whatever is still locked).
+    ///
+    /// 20, not 10: balls are meant to stay rare. At 20 about 8.5% of boxes give a ball or floor
+    /// (6% without any guarantee); at 10 it was 13%.
     /// </summary>
-    public const int PITY_BOXES = 10;
+    public const int PITY_BOXES = 20;
 
     // ---- Roll ----------------------------------------------------------------------------------
 
