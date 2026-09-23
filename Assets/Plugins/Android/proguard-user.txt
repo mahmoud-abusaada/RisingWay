@@ -14,6 +14,14 @@
 -keepclassmembers class * implements android.os.Parcelable {
     public static final android.os.Parcelable$Creator *;
 }
+# Play Billing, for Unity IAP. IAP injects com.android.billingclient:billing into the Gradle build
+# but no keep rules, and it reaches every billing class by name from C# (AndroidJavaClass, and
+# AndroidJavaProxy for the listener interfaces). R8 sees no Java caller, so with minify on it renamed
+# or deleted them: the 1.0.0 (code 1) release threw ClassNotFoundException for
+# com.android.billingclient.api.PurchasesUpdatedListener, the store never connected, and the shop
+# showed no products. Development builds are not minified, which is why they worked.
+-keep class com.android.billingclient.** { *; }
+-keep interface com.android.billingclient.** { *; }
 #noinspection ShrinkerUnresolvedReference
 #unity
 -keep class com.google.android.gms.ads.** {public *;}

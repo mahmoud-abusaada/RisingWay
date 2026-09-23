@@ -51,7 +51,32 @@ public static class RisingWayBuilder
         Build(ResolveOutput(DEFAULT_APK), true);
     }
 
-    private static void Build(string outputPath, bool development = false)
+    /// <summary>
+    /// Release configuration - minified by R8, no DEVELOPMENT_BUILD - but signed with the debug key,
+    /// so it builds without the upload keystore's password. It is the build that shows what R8
+    /// strips before an upload does: the 1.0.0 release lost Play Billing that way, and a
+    /// development build, which is not minified, could never have shown it.
+    /// </summary>
+    public static void BuildAndroidApkReleaseCheck()
+    {
+        EditorUserBuildSettings.buildAppBundle = false;
+        bool customKeystore = PlayerSettings.Android.useCustomKeystore;
+        PlayerSettings.Android.useCustomKeystore = false;
+        try
+        {
+            Build(ResolveOutput(DEFAULT_APK), false, false);
+        }
+        finally
+        {
+            PlayerSettings.Android.useCustomKeystore = customKeystore;
+            AssetDatabase.SaveAssets();
+        }
+        EditorApplication.Exit(lastBuildSucceeded ? 0 : 1);
+    }
+
+    private static bool lastBuildSucceeded;
+
+    private static void Build(string outputPath, bool development = false, bool exitWhenDone = true)
     {
         string[] scenes = EditorBuildSettings.scenes
             .Where(s => s.enabled)
@@ -60,7 +85,7 @@ public static class RisingWayBuilder
 
         if (scenes.Length == 0)
         {
-            Fail("No enabled scenes in Build Settings - nothing to build.");
+            Fail("No enabled scenes in Build Settings - nothing to build.", exitWhenDone);
             return;
         }
 
@@ -114,7 +139,7 @@ public static class RisingWayBuilder
         }
         if (thrown != null)
         {
-            Fail("BuildPipeline threw: " + thrown);
+            Fail("BuildPipeline threw: " + thrown, exitWhenDone);
             return;
         }
 
@@ -130,7 +155,9 @@ public static class RisingWayBuilder
             // Per-step timings are the fastest way to see where a slow build actually goes.
             foreach (BuildStep step in report.steps)
                 Log(string.Format("  step {0,-60} {1}", Truncate(step.name, 60), step.duration));
-            EditorApplication.Exit(0);
+            lastBuildSucceeded = true;
+            if (exitWhenDone)
+                EditorApplication.Exit(0);
             return;
         }
 
@@ -145,7 +172,7 @@ public static class RisingWayBuilder
             }
         }
 
-        Fail("Build failed: " + summary.result);
+        Fail("Build failed: " + summary.result, exitWhenDone);
     }
 
     private static string ResolveOutput(string fallback)
@@ -184,9 +211,11 @@ public static class RisingWayBuilder
         Debug.LogError("[RisingWayBuilder] " + msg);
     }
 
-    private static void Fail(string msg)
+    private static void Fail(string msg, bool exit = true)
     {
         LogError(msg);
-        EditorApplication.Exit(1);
+        lastBuildSucceeded = false;
+        if (exit)
+            EditorApplication.Exit(1);
     }
 }
