@@ -100,55 +100,49 @@ public class GameOverMenu : MonoBehaviour
         // }
     }
 
+    // The count is a flourish, not a progress bar: COUNT_SECONDS whatever the score, slowing into
+    // the final number, and in unscaled time so the game's own time scale cannot stretch it.
+    //
+    // It used to add a step worked out from one frame's delta and then wait on WaitForSeconds,
+    // which runs on scaled time: dying while the time scale was low dragged the count out for many
+    // seconds, and the replay and share buttons below only appear once it ends, so the screen sat
+    // there with nothing on it.
+    private const float COUNT_SECONDS = 0.6f;
+
     private IEnumerator scoreCount()
     {
-        _ShowAndroidToastMessage("Starting coroutine");
         int playerScore = scoreManager.getScore();
+        float from = playerScore / 2f; // the count has always started halfway up
+        float elapsed = 0f;
 
-        if (playerScore == 0)
+        while (elapsed < COUNT_SECONDS && playerScore > 0)
         {
-            scoreText.text = playerScore.ToString();
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / COUNT_SECONDS);
+            t = 1f - (1f - t) * (1f - t); // ease out: quick, then settling
+            scoreText.text = ((int)Mathf.Lerp(from, playerScore, t)).ToString();
             yield return null;
         }
 
-        float scoreToShow = playerScore / 2f;
-        int valueLeft = playerScore - (int)scoreToShow;
-        float valueToIncrease = valueLeft * Time.unscaledDeltaTime * 1.5f;
+        scoreText.text = playerScore.ToString();
+        scoreText.GetComponent<Animation>().Play();
 
-        if (valueToIncrease < 0.05f)
-            valueToIncrease = 0.05f;
-
-        while (scoreToShow < playerScore)
+        if (playerScore > playerStats.getHighScore())
         {
-            scoreToShow += valueToIncrease;
-            if (scoreToShow > playerScore)
-                scoreToShow = playerScore;
-            scoreText.text = ((int)(scoreToShow)).ToString();
-            scoreText.GetComponent<Animation>().Play();
-            // yield return new WaitForSeconds(playerScore > 200 ? (valueToIncrease / 60f) : 0.01f);
-            yield return new WaitForSeconds(Time.unscaledDeltaTime / 2);
+            newHighscoreText.transform.localScale = new Vector3(5, 5, 5);
+            newHighscoreText.gameObject.SetActive(true);
+            playerStats.setHighScore(playerScore);
+        }
+        else
+        {
+            highscoreText.text = Utility.Constants.HIGH_SCORE_TEXT + playerStats.getHighScore().ToString();
+            highscoreText.gameObject.SetActive(true);
+            highscoreText.GetComponent<Animation>().Play();
         }
 
-        if (scoreToShow == playerScore)
-        {
-            if (playerScore > playerStats.getHighScore())
-            {
-                newHighscoreText.transform.localScale = new Vector3(5, 5, 5);
-                newHighscoreText.gameObject.SetActive(true);
-                // newHighscoreText.GetComponent<Animation>().Play();
-                playerStats.setHighScore(playerScore);
-            }
-            else
-            {
-                highscoreText.text = Utility.Constants.HIGH_SCORE_TEXT + playerStats.getHighScore().ToString();
-                highscoreText.gameObject.SetActive(true);
-                highscoreText.GetComponent<Animation>().Play();
-            }
-
-            replayButton.gameObject.SetActive(true);
-            shareButton.gameObject.SetActive(true);
-            GetComponent<Animation>().Play();
-        }
+        replayButton.gameObject.SetActive(true);
+        shareButton.gameObject.SetActive(true);
+        GetComponent<Animation>().Play();
     }
 
     public void RestartGame()
