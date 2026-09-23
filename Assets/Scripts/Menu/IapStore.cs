@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Services.Core;
 using Unity.Services.Core.Environments;
@@ -38,6 +39,16 @@ public class IapStore : MonoBehaviour
 
     private StoreController store;
     private List<ProductDefinition> productDefinitions;
+
+    // Reconnection. Unity IAP retries a product fetch by itself for as long as the store is
+    // connected, but on Google Play it gives the CONNECTION only 3 attempts and then stays
+    // disconnected for the rest of the session: open the game offline, or lose Play services
+    // once, and the shop showed no products until the app was restarted. So this retries the
+    // connection itself, backing off, and tries again whenever the shop is opened.
+    private static readonly float[] RECONNECT_DELAYS = { 5f, 15f, 30f, 60f, 60f, 60f };
+    private int reconnectAttempt;
+    private Coroutine reconnectRoutine;
+    private bool fetchInFlight;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CreateAtStartup()
@@ -94,14 +105,61 @@ public class IapStore : MonoBehaviour
         store.OnPurchaseFailed += OnPurchaseFailed;
         store.OnPurchaseDeferred += OnPurchaseDeferred;
 
+        await ConnectAsync();
+    }
+
+    private async System.Threading.Tasks.Task ConnectAsync()
+    {
         try
         {
             await store.Connect();
         }
         catch (Exception e)
         {
-            Debug.LogError("IAP: could not connect to the store: " + e.Message);
+            Debug.LogWarning("IAP: could not connect to the store: " + e.Message);
+            ScheduleReconnect();
         }
+    }
+
+    /// <summary>
+    /// Called when the shop opens: if the store is not ready, try again now rather than waiting
+    /// for the next scheduled retry. Harmless to call when everything is fine.
+    /// </summary>
+    public void EnsureReady()
+    {
+        if (store == null || IsReady)
+            return;
+        if (store.GetConnectionState() == ConnectionState.Disconnected)
+        {
+            reconnectAttempt = 0;
+            if (reconnectRoutine != null) { StopCoroutine(reconnectRoutine); reconnectRoutine = null; }
+            _ = ConnectAsync();
+        }
+        else if (store.GetConnectionState() == ConnectionState.Connected && !fetchInFlight)
+        {
+            FetchProducts();
+        }
+    }
+
+    private void ScheduleReconnect()
+    {
+        if (reconnectRoutine != null || reconnectAttempt >= RECONNECT_DELAYS.Length)
+            return; // already waiting, or given up until the shop is next opened
+        reconnectRoutine = StartCoroutine(ReconnectAfter(RECONNECT_DELAYS[reconnectAttempt++]));
+    }
+
+    private IEnumerator ReconnectAfter(float seconds)
+    {
+        yield return new WaitForSecondsRealtime(seconds);
+        reconnectRoutine = null;
+        if (!IsReady && store.GetConnectionState() == ConnectionState.Disconnected)
+            _ = ConnectAsync();
+    }
+
+    private void FetchProducts()
+    {
+        fetchInFlight = true;
+        store.FetchProducts(productDefinitions);
     }
 
     private static List<ProductDefinition> LoadProductDefinitions()
@@ -157,17 +215,21 @@ public class IapStore : MonoBehaviour
 
     private void OnStoreConnected()
     {
-        store.FetchProducts(productDefinitions);
+        reconnectAttempt = 0;
+        if (!fetchInFlight)
+            FetchProducts();
     }
 
     private void OnStoreDisconnected(StoreConnectionFailureDescription description)
     {
         IsReady = false;
         Debug.LogWarning("IAP: store disconnected: " + description.message);
+        ScheduleReconnect();
     }
 
     private void OnProductsFetched(List<Product> products)
     {
+        fetchInFlight = false;
         IsReady = true;
         ProductsReady?.Invoke();
         // IAP 4 replayed unfinished and owned purchases during initialisation. IAP 5 does it on
@@ -178,6 +240,7 @@ public class IapStore : MonoBehaviour
 
     private void OnProductsFetchFailed(ProductFetchFailed failure)
     {
+        fetchInFlight = false; // Unity IAP has stopped retrying this fetch; EnsureReady() can start another
         Debug.LogWarning("IAP: " + failure.FailedFetchProducts.Count + " product(s) could not be fetched: " + failure.FailureReason);
         // Products that did load are still usable.
         if (store.GetProducts().Count > 0 && !IsReady)

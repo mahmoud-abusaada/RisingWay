@@ -36,6 +36,10 @@ public class PurchaseMenu : MonoBehaviour
         subscribe();
         updatePickUpsCount();
         CreateProductsUI();
+        // Not connected (opened offline, or Play services dropped)? Try again now; prices fill in
+        // through ProductsReady when it succeeds.
+        if (IapStore.Instance != null)
+            IapStore.Instance.EnsureReady();
     }
 
     void OnDestroy()
@@ -102,7 +106,11 @@ public class PurchaseMenu : MonoBehaviour
         this.OnPurchaseCompleted = OnPurchaseCompleted;
         if (IapStore.Instance == null || !IapStore.Instance.Purchase(product))
         {
-            confirmationDialog.setConfirmationDialog("Purchase Failed", "Couldn't find the IAP product.", false);
+            // Almost always the store not being reachable yet, not a missing product.
+            confirmationDialog.setConfirmationDialog("Store Unavailable",
+                "Couldn't reach Google Play. Check your connection and try again.", false);
+            if (IapStore.Instance != null)
+                IapStore.Instance.EnsureReady();
             finishPurchaseUI();
         }
     }
