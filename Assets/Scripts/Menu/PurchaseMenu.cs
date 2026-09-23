@@ -146,6 +146,7 @@ public class PurchaseMenu : MonoBehaviour
     {
         GameAnalytics.PurchaseDone(productId);
         updatePickUpsCount();
+        CreateProductsUI(); // Remove Ads now shows as owned
         finishPurchaseUI();
     }
 
@@ -194,9 +195,12 @@ public class PurchaseMenu : MonoBehaviour
         IapStore.Instance.RestorePurchases(ok =>
         {
             if (ok)
+            {
                 // This does not mean anything was restored, merely that the restoration
                 // process succeeded.
+                CreateProductsUI();
                 confirmationDialog.setConfirmationDialog("Restoration succeeded", "Your purchases have been restored.", false);
+            }
             else
                 confirmationDialog.setConfirmationDialog("Restoration failed", "Couldn't restore your purchases.", false);
         });

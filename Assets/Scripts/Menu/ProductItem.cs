@@ -19,6 +19,19 @@ public class ProductItem : MonoBehaviour
 
     public void Setup(Product product)
     {
+        // Remove Ads, once owned: say so, and do not offer it again. Checked before the product,
+        // so it shows even while the store is unreachable - ownership is in the save file.
+        bool owned = productId == IapStore.REMOVE_ADS && !PlayerStats.Instance.isAdEnabled();
+        purchaseButton.interactable = !owned;
+        Transform buyNow = purchaseButton.transform.Find("BuyNow");
+        if (buyNow != null)
+            buyNow.gameObject.SetActive(!owned);
+        if (owned)
+        {
+            price.text = "OWNED";
+            return;
+        }
+
         if (product == null)
             return;
 
