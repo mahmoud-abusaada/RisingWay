@@ -61,7 +61,12 @@ public static class RisingWayBuilder
     {
         EditorUserBuildSettings.buildAppBundle = false;
         bool customKeystore = PlayerSettings.Android.useCustomKeystore;
+        bool minify = PlayerSettings.Android.minifyRelease;
         PlayerSettings.Android.useCustomKeystore = false;
+        // -noMinify: the same build without R8, to tell whether a release-only fault is R8's.
+        if (Environment.GetCommandLineArgs().Any(a => string.Equals(a, "-noMinify", StringComparison.OrdinalIgnoreCase)))
+            PlayerSettings.Android.minifyRelease = false;
+        Log("minifyRelease=" + PlayerSettings.Android.minifyRelease);
         try
         {
             Build(ResolveOutput(DEFAULT_APK), false, false);
@@ -69,6 +74,7 @@ public static class RisingWayBuilder
         finally
         {
             PlayerSettings.Android.useCustomKeystore = customKeystore;
+            PlayerSettings.Android.minifyRelease = minify;
             AssetDatabase.SaveAssets();
         }
         EditorApplication.Exit(lastBuildSucceeded ? 0 : 1);
