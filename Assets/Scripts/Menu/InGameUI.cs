@@ -51,9 +51,37 @@ public class InGameUI : MonoBehaviour
     private List<PickUpType> currentPickUps = new List<PickUpType>();
     private Vector2 targetPickedPickUpsContainerSize = new Vector2(0, 0);
     private Hashtable targetPickedPickUpsPositions = new Hashtable();
-    private int turnsWithTutorialsCount = 0;
     private bool pickedGamePlayChoice = false;
     private IEnumerator animationsCoroutine;
+
+    // ---------------------------------------------------------------------------------------
+    // Tutorial (a new player's first run; Settings can switch it back on)
+    //
+    // Two steps, and no way to fall in either:
+    //   Stop    the ball stops by itself on the first two turns, a hand shows the tap, and it
+    //           waits. This teaches what a tap does.
+    //   Timing  the ball no longer stops. This is the game itself - tap while the ball is on the
+    //           turn - which the old tutorial never showed: it let go after the two stops, and
+    //           the first real turn was the first one the player had to time. Here a tap that is
+    //           too early is ignored, and a ball that gets past the flag untapped slows, stops
+    //           and waits, saying so. TIMING_HITS taps in time finish the tutorial.
+    // Every turn part carries a flag while it lasts (PathMaker). PlayerMovement.tutorialTurn
+    // decides what a tap does; PlayerTrigger slows and stops the ball.
+    // ---------------------------------------------------------------------------------------
+    private enum TutorialStage { Stop, Timing, Done }
+    private const int STOP_TURNS = 2;
+    private const int TIMING_HITS = 3;
+    private const int TIMING_TURNS_AT_MOST = 8;   // then it ends anyway: nobody is kept here
+    private const float INFO_TOP_Y = -250f;
+    private const float INFO_HINT_Y = -620f;       // under the score
+    private TutorialStage tutorialStage = TutorialStage.Stop;
+    private int stopTurns, timingHits, timingTurns, tutorialLate, tutorialEarly;
+    private string tutorialText = "";
+    private GameObject tutorialSkip;
+    private bool infoBusy;
+    private const string HINT_KEY = "key_hint_seen_";
+    private TextMeshProUGUI bestText;   // under the score: the score to beat
+    private GameObject powerUpDock;
 
     void Awake()
     {
@@ -63,6 +91,17 @@ public class InGameUI : MonoBehaviour
         pickUpsManager = FindObjectOfType<PickUpsManager>();
         menusController = FindObjectOfType<MenusController>();
         pathMaker = FindObjectOfType<PathMaker>();
+
+        // The power-up buttons (PickUps/<name>/Count/CountText), in the Nebula look.
+        Transform dock = boltsOwned.transform.parent.parent.parent;
+        dock.gameObject.AddComponent<PowerUpDock>().Build(pickUpsManager);
+        powerUpDock = dock.gameObject;
+        pickedPickUps.gameObject.SetActive(false); // see addPickedPickUp
+
+        bestText = UiKit.Label(scoreText, scoreText.transform.parent, "Best", "", 34, UiKit.TextDim, TextAlignmentOptions.Center);
+        bestText.rectTransform.anchoredPosition = scoreText.rectTransform.anchoredPosition + new Vector2(0, -92);
+        bestText.rectTransform.sizeDelta = new Vector2(600, 50);
+        bestText.transform.SetSiblingIndex(scoreText.transform.GetSiblingIndex() + 1);
     }
 
     void Start()
@@ -93,11 +132,25 @@ public class InGameUI : MonoBehaviour
     void OnEnable()
     {
         updatePickUpsCount();
-        tutorialsContainer.gameObject.SetActive(PlayerStats.Instance.isTutorialsOn());
-        scoreText.gameObject.SetActive(!PlayerStats.Instance.isTutorialsOn());
-        pauseButton.gameObject.SetActive(!PlayerStats.Instance.isTutorialsOn());
-        tutorialsInfo.text = (PlayerStats.Instance.getGamePlayMode() == GamePlayMode.SwipeLeftRight ? "Swipe" : "Tap") + " once you reach the flag";
-        // tutorialsInfo.fontSize = 60;
+        bool tutorial = PlayerStats.Instance.isTutorialsOn();
+        tutorialsContainer.gameObject.SetActive(tutorial);
+        scoreText.gameObject.SetActive(!tutorial);
+        bestText.gameObject.SetActive(!tutorial);
+        updateBestText();
+        // Not in the tutorial, which is about turning (and they cannot be used in it).
+        powerUpDock.SetActive(!tutorial);
+        if (!tutorial && ownsPowerUps())
+            StartCoroutine(dockHint());
+        pauseButton.gameObject.SetActive(!tutorial);
+        // Also runs when the game comes back from the pause menu, which stopped whatever was being
+        // said (coroutines end with the object): put the line back as it was, or clear it.
+        infoBusy = false;
+        setUpInfo();
+        tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, INFO_TOP_Y, 0);
+        tutorialsInfo.text = tutorial ? tutorialText : "";
+        tutorialsInfo.alpha = tutorial && Utility.gameStarted ? 1 : 0;
+        if (tutorialSkip != null)
+            tutorialSkip.SetActive(tutorial);
         resetSelectedGamePlayMode();
         pickedGamePlayChoice = false;
     }
@@ -192,131 +245,249 @@ public class InGameUI : MonoBehaviour
         chancesOwned.text = Utility.getFormatedNumber(PlayerStats.Instance.getChancesCount());
     }
 
+    // In the tutorial PlayerMovement decides what each of these does (tutorialTurn) and reports
+    // back through tutorialTurned / tutorialTapIgnored.
     public void AutoTurn()
     {
-        // Debug.Log("Turning " + inputManager.userCanControl());
         if (inputManager.userCanControl())
-        {
             playerMovement.autoTurn();
-            if (PlayerStats.Instance.isTutorialsOn())
-            {
-                turnsWithTutorialsCount++;
-                // if (turnsWithTutorialsCount > 10)
-                // {
-                //     turnsWithTutorialsCount = 0;
-                //     PlayerStats.Instance.setTutorialsState(false);
-                // }
-                if (turnsWithTutorialsCount == 2)
-                {
-                    setThirdMessage();
-                }
-            }
-        }
     }
 
     public void TurnLeft()
     {
         if (inputManager.userCanControl())
-        {
-            if (PlayerStats.Instance.isTutorialsOn() && ((TurnDirection)pathMaker.nextDirection).nextDistination == NextDistination.RIGHT) return;
-            playerMovement.turnLeft();
-            if (PlayerStats.Instance.isTutorialsOn())
-            {
-                turnsWithTutorialsCount++;
-                // if (turnsWithTutorialsCount > 10)
-                // {
-                //     turnsWithTutorialsCount = 0;
-                //     PlayerStats.Instance.setTutorialsState(false);
-                // }
-                if (turnsWithTutorialsCount == 2)
-                {
-                    setThirdMessage();
-                }
-            }
-        }
+            playerMovement.manualTurn(true);
     }
 
     public void TurnRight()
     {
         if (inputManager.userCanControl())
+            playerMovement.manualTurn(false);
+    }
+
+    // The line of text the tutorial and the hints share: up to two lines, shrinking to fit.
+    private void setUpInfo()
+    {
+        tutorialsInfo.enableAutoSizing = true;
+        tutorialsInfo.fontSizeMin = 30;
+        tutorialsInfo.fontSizeMax = 62;
+        tutorialsInfo.rectTransform.sizeDelta = new Vector2(960, 190);
+    }
+
+    private static string tapWord()
+    {
+        return PlayerStats.Instance.getGamePlayMode() == GamePlayMode.SwipeLeftRight ? "Swipe" : "Tap";
+    }
+
+    private static string howToTurn()
+    {
+        switch (PlayerStats.Instance.getGamePlayMode())
         {
-            if (PlayerStats.Instance.isTutorialsOn() && ((TurnDirection)pathMaker.nextDirection).nextDistination == NextDistination.LEFT) return;
-            playerMovement.turnRight();
-            if (PlayerStats.Instance.isTutorialsOn())
-            {
-                turnsWithTutorialsCount++;
-                // if (turnsWithTutorialsCount > 10)
-                // {
-                //     turnsWithTutorialsCount = 0;
-                //     PlayerStats.Instance.setTutorialsState(false);
-                // }
-                if (turnsWithTutorialsCount == 2)
-                {
-                    setThirdMessage();
-                }
-            }
+            case GamePlayMode.TapLeftRight: return "Tap left or right to turn";
+            case GamePlayMode.SwipeLeftRight: return "Swipe left or right to turn";
+            default: return "Tap anywhere to turn";
         }
     }
 
-    private void setThirdMessage()
+    private void say(string text)
     {
-        // FinishTutorial();
-        StartCoroutine(finishTutorialNumerator());
+        tutorialText = text;
+        tutorialsInfo.text = text;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log("[Tutorial] " + text.Replace("\n", " / "));
+#endif
+        Animation fade = tutorialsInfo.GetComponent<Animation>();
+        fade.Stop();
+        fade.Play("ShowTutorialInfo");
     }
 
-    private IEnumerator finishTutorialNumerator()
+    /// <summary>The ball is in place and the run starts with the tutorial on.</summary>
+    public void startTutorial()
     {
-        turnsWithTutorialsCount = 0;
+        tutorialStage = TutorialStage.Stop;
+        stopTurns = timingHits = timingTurns = tutorialLate = tutorialEarly = 0;
+        setUpInfo();
+        tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, INFO_TOP_Y, 0);
+        showSkip();
+        say("The ball stops at the flag.\n" + howToTurn() + "!");
+    }
 
-        if (tutorialsInfo.alpha > 0)
-            tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
+    // "Skip", top right where the pause button will be: made here from the info text so that it
+    // needs nothing new in the scene.
+    private void showSkip()
+    {
+        if (tutorialSkip == null)
+        {
+            tutorialSkip = Instantiate(tutorialsInfo.gameObject, tutorialsContainer);
+            tutorialSkip.name = "Skip";
+            DestroyImmediate(tutorialSkip.GetComponent<Animation>());
+            TextMeshProUGUI label = tutorialSkip.GetComponent<TextMeshProUGUI>();
+            label.text = "Skip";
+            label.enableAutoSizing = false;
+            label.fontSize = 40;
+            label.alpha = 0.65f;
+            label.alignment = TextAlignmentOptions.Center;
+            label.raycastTarget = true;
+            RectTransform rect = label.rectTransform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1, 1);
+            rect.anchoredPosition3D = new Vector3(-30, -50, 0);
+            rect.sizeDelta = new Vector2(220, 110);
+            tutorialSkip.AddComponent<Button>().onClick.AddListener(FinishTutorial);
+        }
+        tutorialSkip.SetActive(true);
+    }
 
-        yield return new WaitForSecondsRealtime(0.4f);
+    /// <summary>Whether the ball stops by itself at each turn (the tutorial's first step).</summary>
+    public bool tutorialStopsAtTurns()
+    {
+        return tutorialStage == TutorialStage.Stop;
+    }
 
-        // tutorialsInfo.fontSize = 70;
-        tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, -800, 0);
-        tutorialsInfo.text = "Perfect!";
-        showTutorialInfo();
+    /// <summary>The ball is coming onto a turn part. The first one it does not stop at gets the hand.</summary>
+    public void tutorialReachedTurn(Transform turnPart)
+    {
+        if (tutorialStage == TutorialStage.Timing && timingHits == 0)
+            playTutorialsAnimation(turnPart);
+    }
 
-        yield return new WaitForSecondsRealtime(1);
+    /// <summary>The ball has stopped on a turn part and waits for the player.</summary>
+    public void tutorialBallStopped(Transform turnPart, bool late)
+    {
+        playTutorialsAnimation(turnPart);
+        if (late)
+        {
+            tutorialLate++;
+            say("Too late!\n" + tapWord() + " a little sooner next time");
+        }
+    }
 
-        if (tutorialsInfo.alpha > 0)
-            tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
+    /// <summary>A tap the tutorial did not take: before the turn, or for the wrong side.</summary>
+    public void tutorialTapIgnored(bool wrongSide)
+    {
+        if (wrongSide)
+            say("The other side!");
+        else if (tutorialStage == TutorialStage.Timing)
+        {
+            tutorialEarly++;
+            say("Too early!\nWait until the ball is on the flag");
+        }
+    }
 
-        yield return new WaitForSecondsRealtime(0.4f);
+    /// <summary>The player turned the ball; <paramref name="wasStopped"/> if it was waiting for them.</summary>
+    public void tutorialTurned(bool wasStopped)
+    {
+        if (tutorialStage == TutorialStage.Stop)
+        {
+            stopTurns++;
+            if (stopTurns < STOP_TURNS)
+                return;
+            tutorialStage = TutorialStage.Timing;
+            GameAnalytics.TutorialStep("timing");
+            say("Now it will not stop!\n" + tapWord() + " when the ball is on the flag");
+            return;
+        }
+        if (tutorialStage != TutorialStage.Timing)
+            return;
 
-        tutorialsInfo.text = "You are ready to go!";
-        showTutorialInfo();
+        timingTurns++;
+        if (!wasStopped)
+            timingHits++;
+        if (timingHits >= TIMING_HITS || timingTurns >= TIMING_TURNS_AT_MOST)
+            StartCoroutine(tutorialDone());
+        else if (wasStopped)
+            say(tapWord() + " at the flag");
+        else
+            say(timingHits == 1 ? "Nice!" : "Great! One more");
+    }
 
-        yield return new WaitForSecondsRealtime(1.5f);
-
-        scoreText.gameObject.SetActive(true);
+    private void endTutorial()
+    {
+        tutorialStage = TutorialStage.Done;
+        tutorialText = "";
         PlayerStats.Instance.setTutorialsState(false);
-        GameAnalytics.TutorialComplete();
-
-        // yield return new WaitForSecondsRealtime(1);
-
-        if (tutorialsInfo.alpha > 0)
-            tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
-
-        yield return new WaitForSecondsRealtime(0.4f);
-
-        tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, -232, 0);
-        tutorialsContainer.gameObject.SetActive(false);
+        stopTutorialAnimation();
+        if (tutorialSkip != null)
+            tutorialSkip.SetActive(false);
         pauseButton.gameObject.SetActive(true);
+        scoreText.gameObject.SetActive(true);
+        bestText.gameObject.SetActive(true);
+        updateBestText();
+        powerUpDock.SetActive(true);
     }
 
+    private static bool ownsPowerUps()
+    {
+        PlayerStats stats = PlayerStats.Instance;
+        return stats.getBoltsCount() + stats.getDoublePointsCount() + stats.getChancesCount() > 0;
+    }
+
+    // Once ever: where the power-ups are, the first run that has any.
+    private IEnumerator dockHint()
+    {
+        while (!Utility.gameStarted)
+            yield return null;
+        yield return new WaitForSecondsRealtime(2.5f);
+        showHintOnce("dock", "Your power-ups are on the left.\nTap one to use it");
+    }
+
+    // From here it is the game: the score counts and the speed follows it. The goodbye is said
+    // over the next stretch of track.
+    private IEnumerator tutorialDone()
+    {
+        endTutorial();
+        GameAnalytics.TutorialComplete(tutorialLate, tutorialEarly);
+        infoBusy = true;
+        say("Perfect!");
+        yield return new WaitForSecondsRealtime(1.2f);
+        say("You are ready. Don't fall!");
+        yield return new WaitForSecondsRealtime(2f);
+        tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
+        yield return new WaitForSecondsRealtime(0.5f);
+        tutorialsContainer.gameObject.SetActive(false);
+        infoBusy = false;
+    }
+
+    /// <summary>The Skip button.</summary>
     public void FinishTutorial()
     {
+        if (!PlayerStats.Instance.isTutorialsOn())
+            return;
         GameAnalytics.TutorialSkipped();
-        // AutoTurn();
-        if (tutorialsInfo.alpha > 0)
-            tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
-        turnsWithTutorialsCount = 0;
-        PlayerStats.Instance.setTutorialsState(false);
+        StopAllCoroutines();
+        playerMovement.tutorialSkipped(); // a ball waiting at a turn is turned and sent on
+        endTutorial();
+        tutorialsInfo.alpha = 0;
         tutorialsContainer.gameObject.SetActive(false);
-        pauseButton.gameObject.SetActive(true);
-        scoreText.gameObject.SetActive(true);
+        infoBusy = false;
+    }
+
+    /// <summary>
+    /// One line, once ever on this device, the first time something happens in a run: what the
+    /// thing just collected is for. Dropped if the line is busy - it will come up again.
+    /// </summary>
+    public void showHintOnce(string key, string text)
+    {
+        if (!isActiveAndEnabled || infoBusy || PlayerStats.Instance.isTutorialsOn() || PlayerPrefs.GetInt(HINT_KEY + key, 0) == 1)
+            return;
+        PlayerPrefs.SetInt(HINT_KEY + key, 1);
+        StartCoroutine(hint(text));
+    }
+
+    private IEnumerator hint(string text)
+    {
+        infoBusy = true;
+        setUpInfo();
+        tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, INFO_HINT_Y, 0);
+        if (tutorialSkip != null)
+            tutorialSkip.SetActive(false);
+        tutorialsContainer.gameObject.SetActive(true);
+        say(text);
+        tutorialText = "";
+        yield return new WaitForSecondsRealtime(3.5f);
+        tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
+        yield return new WaitForSecondsRealtime(0.5f);
+        tutorialsContainer.gameObject.SetActive(false);
+        infoBusy = false;
     }
 
     public void updateDiamondsText()
@@ -355,6 +526,27 @@ public class InGameUI : MonoBehaviour
     {
         scoreText.text = scoreManager.getScore().ToString();
         scoreText.GetComponent<Animation>().Play();
+        updateBestText();
+    }
+
+    // "BEST 240" while there is one to beat, "NEW BEST!" once it is beaten (the high score itself
+    // is saved at game over).
+    private void updateBestText()
+    {
+        int best = PlayerStats.Instance.getHighScore();
+        int score = scoreManager != null ? scoreManager.getScore() : 0;
+        if (best <= 0)
+            bestText.text = "";
+        else if (score > best)
+        {
+            bestText.text = "NEW BEST!";
+            bestText.color = UiKit.Gold;
+        }
+        else
+        {
+            bestText.text = "BEST " + best;
+            bestText.color = UiKit.TextDim;
+        }
     }
 
     public void playPlus1Effect()
@@ -387,32 +579,19 @@ public class InGameUI : MonoBehaviour
         Destroy(effectClone.gameObject, effectClone.main.startLifetimeMultiplier);
     }
 
-    public void showTutorialInfo()
+    // The hand: a tap, or a tap or swipe on the side the part turns to. The side comes from the
+    // part itself - PathMaker.nextDirection, which this used to read, can be empty.
+    public void playTutorialsAnimation(Transform turnPart = null)
     {
-        tutorialsInfo.GetComponent<Animation>().Play("ShowTutorialInfo");
-    }
-
-    public void playTutorialsAnimation()
-    {
-        // if (turnsWithTutorialsCount == 1 && !pickedGamePlayChoice)
-        // {
-        //     // tutorialsInfo.text = "How do you prefer to play?";
-        //     // showTutorialInfo();
-        //     // hideGamePlayControls();
-        //     // gamePlayChoicesContainer.gameObject.SetActive(true);
-        //     // if (animationsCoroutine != null)
-        //     //     StopCoroutine(animationsCoroutine);
-        //     // animationsCoroutine = animationsIEnumerator();
-        //     // StartCoroutine(animationsCoroutine);
-        // }
-        // else
-        // {
+        if (turnPart == null)
+            return;
+        bool right = turnPart.CompareTag("LandRight");
         GamePlayMode selectedGamePlayMode = PlayerStats.Instance.getGamePlayMode();
         switch (selectedGamePlayMode)
         {
             case GamePlayMode.TapLeftRight:
                 tutorialsLeftRightDivider.gameObject.SetActive(true);
-                if (((TurnDirection)pathMaker.nextDirection).nextDistination == NextDistination.RIGHT)
+                if (right)
                 {
                     tutorialsRightTapContainer.gameObject.SetActive(true);
                     tutorialsRightTapContainer.GetComponent<Animation>()["TutorialsTap"].speed = 0.7f;
@@ -426,7 +605,7 @@ public class InGameUI : MonoBehaviour
                 }
                 break;
             case GamePlayMode.SwipeLeftRight:
-                if (((TurnDirection)pathMaker.nextDirection).nextDistination == NextDistination.RIGHT)
+                if (right)
                 {
                     tutorialsSwipeRightContainer.gameObject.SetActive(true);
                     tutorialsSwipeRightContainer.GetComponent<Animation>()["TutorialsSwipeRight"].speed = 0.7f;
@@ -445,16 +624,8 @@ public class InGameUI : MonoBehaviour
                 tutorialsSingleTapContainer.GetComponent<Animation>().Play();
                 break;
         }
-        if (turnsWithTutorialsCount > 1)
-        {
-            tutorialsFinish.gameObject.SetActive(true);
-        }
-        else
-        {
-            tutorialsFinish.gameObject.SetActive(false);
-        }
+        tutorialsFinish.gameObject.SetActive(false);
         gamePlayChoicesContainer.gameObject.SetActive(false);
-        // }
     }
 
     public void SelectSingleTapMode()
@@ -525,10 +696,12 @@ public class InGameUI : MonoBehaviour
         if (currentPickUps.Contains(pickUpType))
             return;
 
+        // The row under the score is kept for its bookkeeping but not shown: the power-up buttons
+        // on the left light up and count down while one is on (PowerUpDock).
         if (currentPickUps.Count == 0)
         {
             pickedPickUps.sizeDelta = new Vector2(100, 100);
-            pickedPickUps.gameObject.SetActive(true);
+            pickedPickUps.gameObject.SetActive(false);
         }
 
         setPickedUpImageUI(pickUpType);
@@ -589,6 +762,13 @@ public class InGameUI : MonoBehaviour
                 currentX += 90;
             }
         }
+    }
+
+    /// <summary>The run is over: no power-up icon stays for the next one.</summary>
+    public void clearPickedPickUps()
+    {
+        foreach (PickUpType p in new List<PickUpType>(currentPickUps))
+            removePickedPickUp(p);
     }
 
     public void removePickedPickUp(PickUpType pickUpType)

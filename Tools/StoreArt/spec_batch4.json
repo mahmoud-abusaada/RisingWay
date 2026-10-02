@@ -1,0 +1,15 @@
+{
+  "items": [
+    { "src": "Builds/StoreArt/raw6/box_moon.png", "out": "Builds/StoreArt/final/04_mystery_box.jpg",
+      "sy0": 0.1935, "sy1": 0.987, "shade": 0.3, "shadeAlpha": 1.0, "titleY": 0.07,
+      "title": "MYSTERY BOXES", "titleSize": 104, "sub": "Win rare planets, stars and moons" },
+
+    { "src": "Builds/StoreArt/raw6/shop_planets.png", "out": "Builds/StoreArt/final/05_planets.jpg",
+      "sy0": 0.1935, "sy1": 0.987, "shade": 0.3, "shadeAlpha": 1.0, "titleY": 0.07,
+      "title": "COLLECT PLANETS", "titleSize": 104, "sub": "Saturn, Mars, Neptune and more" },
+
+    { "src": "Builds/StoreArt/raw6/shop_stars.png", "out": "Builds/StoreArt/final/06_stars.jpg",
+      "sy0": 0.1935, "sy1": 0.987, "shade": 0.3, "shadeAlpha": 1.0, "titleY": 0.07,
+      "title": "70+ BALLS", "titleSize": 104, "sub": "Blazing stars in every colour" }
+  ]
+}

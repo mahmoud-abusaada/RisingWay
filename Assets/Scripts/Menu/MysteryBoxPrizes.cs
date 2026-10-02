@@ -66,7 +66,7 @@ public static class MysteryBoxPrizes
 
     // ---- Roll ----------------------------------------------------------------------------------
 
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
+#if DEVELOPMENT_BUILD || UNITY_EDITOR || STORE_CAPTURE
     /// <summary>Development builds only: when set, replaces the roll (for recording each rarity).</summary>
     public static Func<MaterialsManager, MysteryBoxPrize?> DebugOverride;
 #endif
@@ -74,7 +74,7 @@ public static class MysteryBoxPrizes
     /// <param name="boxesSinceCosmetic">Boxes opened since the last ball or floor (the pity count).</param>
     public static MysteryBoxPrize Roll(MaterialsManager materials, int boxesSinceCosmetic)
     {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
+#if DEVELOPMENT_BUILD || UNITY_EDITOR || STORE_CAPTURE
         if (DebugOverride != null)
         {
             MysteryBoxPrize? forced = DebugOverride(materials);

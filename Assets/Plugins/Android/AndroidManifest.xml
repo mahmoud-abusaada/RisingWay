@@ -24,9 +24,18 @@
       and no log line. Do not reintroduce it.
     -->
 
+    <!--
+      The activity is RisingWayActivity (Plugins/Android/RisingWayActivity.java): Unity's own, plus
+      a back callback that hands every back press to the game, which turns it into pause / close /
+      exit (MenusController.handleSystemBack). enableOnBackInvokedCallback="true" is what makes
+      Android 13 and later call that callback. With "false" the press was supposed to arrive as
+      the Escape key; on a Galaxy S20 (Android 13) it did not from the Settings screen, and the
+      system sent the app to the background instead.
+    -->
     <application>
-        <activity android:name="com.unity3d.player.UnityPlayerActivity"
-                  android:theme="@style/UnityThemeSelector">
+        <activity android:name="com.abusaada.risingway.RisingWayActivity"
+                  android:theme="@style/UnityThemeSelector"
+                  android:enableOnBackInvokedCallback="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

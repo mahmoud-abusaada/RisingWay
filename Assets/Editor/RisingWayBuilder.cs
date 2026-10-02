@@ -79,12 +79,19 @@ public static class RisingWayBuilder
         if (Environment.GetCommandLineArgs().Any(a => string.Equals(a, "-noMinify", StringComparison.OrdinalIgnoreCase)))
             PlayerSettings.Android.minifyRelease = false;
         Log("minifyRelease=" + PlayerSettings.Android.minifyRelease);
+        // -define X: an extra scripting define for this build only - STORE_CAPTURE keeps the
+        // test hooks in a release-looking build for store pictures. Never for an upload.
+        string defines = PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.Android);
+        string extra = GetArg("-define");
+        if (!string.IsNullOrEmpty(extra))
+            PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.Android, string.IsNullOrEmpty(defines) ? extra : defines + ";" + extra);
         try
         {
             Build(ResolveOutput(DEFAULT_APK), false, false);
         }
         finally
         {
+            PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.Android, defines);
             PlayerSettings.Android.useCustomKeystore = customKeystore;
             PlayerSettings.Android.minifyRelease = minify;
             AssetDatabase.SaveAssets();

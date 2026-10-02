@@ -38,6 +38,9 @@ public class CameraController : MonoBehaviour
 
     public void resetCameraPosition()
     {
+        // A chance's revive may have been under way when the run was left.
+        chanceTakenEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        chanceTakenEffect.gameObject.SetActive(false);
         transform.position = startPosition;
         transform.localEulerAngles = new Vector3(0, 0, 0);
         moonsParent.localEulerAngles = new Vector3(0, 0, 0);

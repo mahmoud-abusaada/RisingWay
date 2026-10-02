@@ -1,0 +1,28 @@
+{
+  "items": [
+    { "src": "Builds/StoreArt/feature_bg/402.png", "out": "Builds/StoreArt/final/feature_graphic.png",
+      "width": 1024, "height": 500, "zoom": 1.0, "cx": 0.5, "cy": 0.5, "shade": 0,
+      "title": "RISING WAY", "sub": "Tap. Turn. Climb forever.",
+      "titleSize": 104, "subSize": 38, "titleY": 0.27, "align": "left", "marginX": 0.055 },
+
+    { "src": "Builds/StoreArt/raw/test_12.png", "out": "Builds/StoreArt/final/01_tap_to_turn.jpg",
+      "zoom": 1.3, "cx": 0.5, "cy": 0.52,
+      "title": "TAP TO TURN", "sub": "Climb an endless neon track through space" },
+
+    { "src": "Builds/StoreArt/raw/C_sunbolt_7.png", "out": "Builds/StoreArt/final/02_bolt.jpg",
+      "zoom": 1.25, "cx": 0.55, "cy": 0.5,
+      "title": "BOLT BOOST", "sub": "Blast up the track at super speed" },
+
+    { "src": "Builds/StoreArt/raw2/I_saturn_20.png", "out": "Builds/StoreArt/final/03_diamonds.jpg",
+      "zoom": 1.3, "cx": 0.5, "cy": 0.5,
+      "title": "COLLECT DIAMONDS", "sub": "Spend them on new looks and upgrades" },
+
+    { "src": "Builds/StoreArt/raw2/I_saturn_16.png", "out": "Builds/StoreArt/final/04_climbs.jpg",
+      "zoom": 1.2, "cx": 0.6, "cy": 0.45,
+      "title": "CLIMB HIGHER", "sub": "The higher you go, the wilder the way" },
+
+    { "src": "Builds/StoreArt/raw2/K_jupiter_12.png", "out": "Builds/StoreArt/final/05_double_points.jpg",
+      "zoom": 1.3, "cx": 0.5, "cy": 0.52,
+      "title": "DOUBLE POINTS", "sub": "Every step counts twice" }
+  ]
+}

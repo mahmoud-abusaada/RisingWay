@@ -48,7 +48,15 @@ public class Destroyer : MonoBehaviour
         if (transform.parent.Find("PickUp") != null)
         {
             if (transform.parent.Find("PickUp").CompareTag("Bolt"))
-                pathMaker.boltIsOver();
+            {
+                // A bolt never collected frees its place for the next one. During a bolt this used
+                // to reset the running bolt's own count too - often the very pickup that started
+                // it, still on its part while its effect played - and the bolt ran twice as far.
+                if (Utility.boltIsOn)
+                    pathMaker.boltPickedUp();
+                else
+                    pathMaker.boltIsOver();
+            }
             if (transform.parent.Find("PickUp").CompareTag("Chance"))
                 pathMaker.chanceIsOver();
             if (transform.parent.Find("PickUp").CompareTag("DoublePoint"))

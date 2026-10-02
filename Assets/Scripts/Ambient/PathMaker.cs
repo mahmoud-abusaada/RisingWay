@@ -65,6 +65,24 @@ public class PathMaker : MonoBehaviour
     private static readonly HashSet<string> pickUpHeightsReported = new HashSet<string>();
 #endif
 
+    // A U-turn - two turns the same way back to back (R-R, L-L and the patterns that start with
+    // them) - brings the path back alongside itself, edge to edge: the part after the second turn
+    // lies right beside the last part before the first turn. After a climb that is a curve up next
+    // to the curve out the ball is still on, its floor already higher. A ball near that edge
+    // reached into it: its ground probe, as wide as the ball, found the neighbour's floor and
+    // lifted the ball off its own track; and its collider touched the neighbour's triggers, which
+    // took the ball for arrived there and knocked down the parts before it, the ones the ball was
+    // on. Either way the run ended. Until the ball reaches the second turn, that part is not there
+    // for it: not ground (PlayerMovement.castToGround), and no contacts or triggers with the ball.
+    private class NotYetReached
+    {
+        public Transform until;       // the second turn
+        public Collider[] colliders;  // the part's own, not its pickup's
+    }
+    private readonly Dictionary<Transform, NotYetReached> notGroundUntil = new Dictionary<Transform, NotYetReached>();
+    private Transform partBeforeLast;
+    private Collider[] ballColliders;
+
     private int patternTier;
     private Transform pathBeingDestroyed;
     private bool spiralsUnlocked, shortClimbsUnlocked;
@@ -76,6 +94,8 @@ public class PathMaker : MonoBehaviour
     // has every pattern from the start, to try them without playing up to a score of 500.
     // MovementProbe sets it with -probeAllPatterns.
     public static bool PreviewAllPatterns;
+    // MovementProbe -probePatterns: every turn is one of these patterns ("R-R", "L-L", ...).
+    public static string[] ForcedPatterns;
 #endif
 
     void Awake()
@@ -123,7 +143,8 @@ public class PathMaker : MonoBehaviour
     public void resetPathValues()
     {
         pathDirection = Directions.North;
-        lastSpawnedPart = null;
+        lastSpawnedPart = partBeforeLast = null;
+        forgetUTurns();
         nextPart = null;
         lastSpawnedPartPosition = new Vector3(0, 0, 0);
         spawnedStraightCount = 0;
@@ -323,6 +344,12 @@ public class PathMaker : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (PreviewAllPatterns && patternTier < TOP_PATTERN_TIER && !playerStats.isTutorialsOn())
             unlockPatternsUpTo(TOP_PATTERN_TIER);
+        if (ForcedPatterns != null && ForcedPatterns.Length > 0 && !playerStats.isTutorialsOn())
+        {
+            string forced = ForcedPatterns[Random.Range(0, ForcedPatterns.Length)];
+            addPatterns(forced);
+            return new Queue((ArrayList)landPatterns[forced]);
+        }
 #endif
         bool tutorials = playerStats.isTutorialsOn();
         if (spiralTurnsLeft > 0)
@@ -489,14 +516,8 @@ public class PathMaker : MonoBehaviour
 
         if (targetPart == Parts.LandLeft || targetPart == Parts.LandRight)
         {
-            if (PlayerStats.Instance.isTutorialsOn() && turnsSpawned < 2)
-            {
-                part.Find("Flag").gameObject.SetActive(true);
-            }
-            else
-            {
-                part.Find("Flag").gameObject.SetActive(false);
-            }
+            // Every turn of the tutorial has a flag: "tap when the ball is on the flag".
+            part.Find("Flag").gameObject.SetActive(PlayerStats.Instance.isTutorialsOn());
         }
 
         part.GetComponent<MoveDown>().setPreviousPart(nextPart);
@@ -504,6 +525,7 @@ public class PathMaker : MonoBehaviour
         nextPart = part;
 
         part.parent = currentGamePathParent;
+        preparePartMaterial(part);
 
         // updatePartsRenderQueue();
         // setPartMaterial(part.Find("Mesh"));
@@ -548,13 +570,33 @@ public class PathMaker : MonoBehaviour
         }
     }
 
+    // Every part writes depth, the near ones too, so the stars, the Sun's glow and the planets'
+    // trails stay behind the track. (The near parts used to be drawn without depth so the ball's
+    // moons showed through them, which let all of those through as well; the ball and its moons
+    // now show through by themselves - SeeThrough.)
     private void setPartMaterial(Transform part, bool isFade = true, int renderQueue = -1)
     {
-        if (part != null)
-            if (isFade)
-                part.GetComponent<Renderer>().material = MaterialsManager.Instance.getFadeMaterial(part.GetComponent<Renderer>().material, renderQueue);
-            else
-                part.GetComponent<Renderer>().material = MaterialsManager.Instance.getLitMaterial(part.GetComponent<Renderer>().material, renderQueue);
+        if (part == null)
+            return;
+        Renderer renderer = part.GetComponent<Renderer>();
+        if (isFade)
+            renderer.material = MaterialsManager.Instance.getFadeMaterial(renderer.material, renderQueue);
+        else
+            renderer.material = MaterialsManager.Instance.getLitMaterial(renderer.material, renderQueue);
+        renderer.sharedMaterial.SetFloat(ZWRITE, 1f); // URP Lit's transparent surface turns it off
+    }
+
+    private static readonly int ZWRITE = Shader.PropertyToID("_ZWrite");
+
+    // A part just added: drawn like the others from its first frame (updatePartsRenderQueue puts
+    // it in its place in the order with the next part passed).
+    private void preparePartMaterial(Transform part)
+    {
+        int queue = 2000 + currentGamePathParent.childCount;
+        bool fade = Utility.playerIsInPosition;
+        setPartMaterial(part.Find("Mesh"), fade, queue + 1);
+        setPartMaterial(part.Find("PartStartBlock"), fade, queue - 1);
+        setPartMaterial(part.Find("PartEndBlock"), fade, queue - 1);
     }
 
     // Every pick-up the same height above the track it sits on. PartsPool places it a fixed height
@@ -681,6 +723,7 @@ public class PathMaker : MonoBehaviour
             (part.GetChild(0).gameObject.GetComponent<MeshCollider>()).enabled = true;
 
         part.gameObject.SetActive(true);
+        letBallSee(part);
 
         if (part.tag == "LandLeft")
         {
@@ -709,7 +752,105 @@ public class PathMaker : MonoBehaviour
             part.GetComponentInChildren<Destroyer>().setNextDirection(newTurn);
         }
 
+        notGroundUntil.Remove(part); // a pooled part back from an earlier path
+        if (partBeforeLast != null && lastSpawnedPart != null && isTurn(lastSpawnedPart) &&
+            lastSpawnedPart.CompareTag(partBeforeLast.tag))
+            hideFromBallUntil(part, lastSpawnedPart);
+        partBeforeLast = lastSpawnedPart;
         lastSpawnedPart = part;
+    }
+
+    private void hideFromBallUntil(Transform part, Transform secondTurn)
+    {
+        if (ballColliders == null)
+        {
+            GameObject ball = GameObject.FindWithTag("Player");
+            ballColliders = ball != null ? ball.GetComponents<Collider>() : new Collider[0];
+        }
+        List<Collider> own = new List<Collider>();
+        foreach (Collider c in part.GetComponentsInChildren<Collider>())
+            if (!isUnderPickUp(c.transform, part))
+                own.Add(c);
+        NotYetReached entry = new NotYetReached { until = secondTurn, colliders = own.ToArray() };
+        setIgnoredByBall(entry, true);
+        notGroundUntil[part] = entry;
+    }
+
+    private static bool isUnderPickUp(Transform t, Transform part)
+    {
+        for (; t != null && t != part; t = t.parent)
+            if (t.name == "PickUp")
+                return true;
+        return false;
+    }
+
+    // Physics.IgnoreCollision covers trigger messages as well as contacts. It is NOT dropped when a
+    // collider is disabled or its object deactivated (checked: Assets/Editor/IgnoreCollisionCheck),
+    // and it cannot be undone while they are, so a part pooled before the ball reached its U-turn
+    // kept it into its next use - on the S20, as the straight that ends a bolt, whose trigger the
+    // ball then never met: the bolt never ended. So every part is made visible to the ball again
+    // each time it is placed (letBallSee), whatever happened to it before.
+    private void letBallSee(Transform part)
+    {
+        if (ballColliders == null)
+        {
+            GameObject ball = GameObject.FindWithTag("Player");
+            ballColliders = ball != null ? ball.GetComponents<Collider>() : new Collider[0];
+        }
+        foreach (Collider c in part.GetComponentsInChildren<Collider>())
+            foreach (Collider ball in ballColliders)
+                if (ball != null && ball.enabled && c.enabled && ball.gameObject.activeInHierarchy && c.gameObject.activeInHierarchy)
+                {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    if (Physics.GetIgnoreCollision(ball, c))
+                        Debug.LogWarning("[UTurn] " + part.tag + " came back from the pool still hidden from the ball (" + c.name + "): cleared");
+#endif
+                    Physics.IgnoreCollision(ball, c, false);
+                }
+    }
+
+    private void setIgnoredByBall(NotYetReached entry, bool ignore)
+    {
+        foreach (Collider ball in ballColliders)
+            foreach (Collider c in entry.colliders)
+                if (ball != null && c != null && ball.enabled && c.enabled && ball.gameObject.activeInHierarchy && c.gameObject.activeInHierarchy)
+                    Physics.IgnoreCollision(ball, c, ignore);
+    }
+
+    private void forgetUTurns()
+    {
+        foreach (NotYetReached entry in notGroundUntil.Values)
+            setIgnoredByBall(entry, false);
+        notGroundUntil.Clear();
+    }
+
+    /// <summary>Whether the ball must not stand on <paramref name="part"/> yet (see notGroundUntil).</summary>
+    public bool isNotGroundYet(Transform part)
+    {
+        return notGroundUntil.Count > 0 && part != null && notGroundUntil.ContainsKey(part);
+    }
+
+    /// <summary>The ball is on <paramref name="part"/>: a U-turn it has reached is there again.</summary>
+    public void ballIsOn(Transform part)
+    {
+        if (notGroundUntil.Count == 0 || part == null)
+            return;
+        List<Transform> reached = null;
+        foreach (KeyValuePair<Transform, NotYetReached> entry in notGroundUntil)
+            if (entry.Value.until == part)
+                (reached ??= new List<Transform>()).Add(entry.Key);
+        if (reached == null)
+            return;
+        foreach (Transform t in reached)
+        {
+            setIgnoredByBall(notGroundUntil[t], false);
+            notGroundUntil.Remove(t);
+        }
+    }
+
+    bool isTurn(Transform brick)
+    {
+        return brick.CompareTag("LandRight") || brick.CompareTag("LandLeft");
     }
 
     bool isLand(Transform brick)
@@ -869,7 +1010,8 @@ public class PathMaker : MonoBehaviour
     {
         lastSpawnedPartPosition = startPosition;
         pathDirection = direction;
-        lastSpawnedPart = null;
+        lastSpawnedPart = partBeforeLast = null;
+        forgetUTurns();
         directions.Clear();
         pickedLandsPattern = null;
         // The revived ball rolls on before this path is all down: its parts hurry to land ahead of
@@ -883,6 +1025,17 @@ public class PathMaker : MonoBehaviour
         spawnedBolts--;
         if (spawnedBolts < 0)
             spawnedBolts = 0;
+    }
+
+    /// <summary>
+    /// A bolt has gone on for far longer than its distance (PickUpsManager): end it the normal way,
+    /// with the straight stretch after the next climb, as if its distance had just run out.
+    /// </summary>
+    public void stopBoltSoon()
+    {
+        if (isStoppingBolt)
+            return;
+        spawnedPartsWithBolt = int.MaxValue / 2;
     }
 
     public void boltIsOver()

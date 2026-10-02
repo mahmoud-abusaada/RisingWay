@@ -55,25 +55,83 @@ public class MenusController : MonoBehaviour
         showAndAddMenuToStack(Menus.MainMenu);
     }
 
+    // A second back press on the main menu within this many seconds exits the game.
+    private const float EXIT_PRESS_WINDOW = 2f;
+    private float lastBackOnMainMenu = -10f;
+    private const float BACK_REPEAT_SECONDS = 0.3f;
+    private float lastBackPress = -10f;
+
+    /// <summary>
+    /// Android's back button (InputManager). It does what the screen's own back or cancel does:
+    /// a dialog closes; in a run the game pauses, and back on the pause menu resumes; the revive
+    /// offer is declined; game over goes to the main menu; the mystery box reveal skips its spin,
+    /// then collects; other menus go back. On the main menu the first press says to press again,
+    /// and a second within two seconds exits.
+    /// </summary>
     public void handleSystemBack()
     {
-        if (confirmationDialog.isShowing())
+        Debug.Log("[Back] on " + (menusStack.Count > 0 ? menusStack.Peek().ToString() : "nothing") +
+                  (UIFader.isFadingIn || UIFader.isFadingOut ? " (fading, ignored)" : "") +
+                  (Time.unscaledTime - lastBackPress < BACK_REPEAT_SECONDS ? " (repeat, ignored)" : ""));
+        // One press is one step back. Some phones' back gestures arrive twice in a row, and the
+        // second press then acted on the screen the first had just opened - Settings to the main
+        // menu, and on to "press again to exit".
+        if (Time.unscaledTime - lastBackPress < BACK_REPEAT_SECONDS)
+            return;
+        lastBackPress = Time.unscaledTime;
+
+        if (menusStack.Count == 0 || UIFader.isFadingIn || UIFader.isFadingOut)
+            return;
+
+        if (confirmationDialog.isShowing()) // also the odds
         {
             confirmationDialog.NegativeButton();
             return;
         }
 
-        if (menusStack.Peek() == Menus.ShopMenu && shopMenu.GetComponent<ShopMenu>().isMysteryBoxSeeking)
-            return;
-
-        if (menusStack.Count == 1)
+        switch (menusStack.Peek())
         {
-            if (menusStack.Peek() == Menus.MainMenu)
-                Application.Quit();
-            if (menusStack.Peek() == Menus.InGameUI || menusStack.Peek() == Menus.GameOverMenu || menusStack.Peek() == Menus.PauseMenu || menusStack.Peek() == Menus.ReviveMenu)
+            case Menus.MainMenu:
+                if (Time.unscaledTime - lastBackOnMainMenu <= EXIT_PRESS_WINDOW)
+                {
+                    Application.Quit();
+                }
+                else
+                {
+                    lastBackOnMainMenu = Time.unscaledTime;
+                    AndroidToast.Show("Press back again to exit");
+                }
+                return;
+
+            case Menus.InGameUI:
+                if (Utility.gameStarted && !Utility.isGamePaused)
+                    inGameUI.GetComponent<InGameUI>().PauseGame(); // itself checks the run can pause now
+                return;
+
+            case Menus.PauseMenu:
+                pauseMenu.GetComponent<PauseMenu>().ResumeGame();
+                return;
+
+            case Menus.ReviveMenu:
+                reviveMenu.GetComponent<ReviveMenu>().CancelRevive();
+                return;
+
+            case Menus.GameOverMenu:
+                gameOverMenu.GetComponent<GameOverMenu>().RestartGame(); // back to the main menu
+                return;
+
+            case Menus.ShopMenu:
+                ShopMenu shop = shopMenu.GetComponent<ShopMenu>();
+                if (shop.isMysteryBoxSeeking)
+                    shop.revealBack();
+                else
+                    shop.Back();
+                return;
+
+            default:
+                hideCurrentMenu(false);
                 return;
         }
-        hideCurrentMenu(false);
     }
 
     public void showAndAddMenuToStack(Menus menu)

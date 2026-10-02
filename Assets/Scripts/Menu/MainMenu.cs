@@ -23,6 +23,7 @@ public class MainMenu : MonoBehaviour
     private PickUpsManager pickUpsManager;
     private PartsPool partsPool;
     private MenusOperations menusOperations;
+    private MainMenuSkin skin;
 
     void Awake()
     {
@@ -57,6 +58,10 @@ public class MainMenu : MonoBehaviour
         // }
 
         Camera.main.fieldOfView = 85; // To zoom in on start
+
+        skin = gameObject.AddComponent<MainMenuSkin>();
+        skin.Build(gameTitle.GetComponent<TMPro.TMP_Text>(), (RectTransform)transform.Find("TapToPlayButton/Text (TMP)"),
+                   buttonsContainer, (RectTransform)transform.Find("SocialMediaContainer"));
     }
 
     void Start()
@@ -202,6 +207,8 @@ public class MainMenu : MonoBehaviour
         // }
         playerMovement.setPlayerMaterial();
         partsPool.refreshMaterials();
+        if (skin != null)
+            skin.Refresh(); // after a run, or a purchase
     }
 
     void OnDisable()

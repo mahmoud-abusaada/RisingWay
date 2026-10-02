@@ -120,7 +120,9 @@ public static class GameAnalytics
     // ---- Tutorial --------------------------------------------------------------------------------
 
     public static void TutorialBegin() { Log(FirebaseAnalytics.EventTutorialBegin); }
-    public static void TutorialComplete() { Log(FirebaseAnalytics.EventTutorialComplete); }
+    /// <summary>With how often the player was late (the ball stopped for them) and tapped too early.</summary>
+    public static void TutorialComplete(int late, int early) { Log(FirebaseAnalytics.EventTutorialComplete, P("late", late), P("early", early)); }
+    public static void TutorialStep(string step) { Log("tutorial_step", P("step", step)); }
     public static void TutorialSkipped() { Log("tutorial_skip"); }
     public static void TutorialToggled(bool on) { Log("tutorial_setting", P("on", on ? 1 : 0)); }
 

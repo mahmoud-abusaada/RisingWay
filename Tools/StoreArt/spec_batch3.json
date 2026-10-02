@@ -1,0 +1,15 @@
+{
+  "items": [
+    { "src": "Builds/StoreArt/raw5/P_saturn_3.png", "out": "Builds/StoreArt/final/04_planets.jpg",
+      "zoom": 2.0, "cx": 0.5, "cy": 0.5,
+      "title": "ROLL AS A PLANET", "titleSize": 104, "sub": "Saturn, the Sun and blazing stars" },
+
+    { "src": "Builds/StoreArt/raw5/P_saturn_10.5.png", "out": "Builds/StoreArt/final/03_diamonds.jpg",
+      "zoom": 1.5, "cx": 0.5, "cy": 0.47,
+      "title": "GRAB DIAMONDS", "titleSize": 104, "sub": "Unlock new balls and tracks" },
+
+    { "src": "Builds/StoreArt/raw5/Q_climb_33.png", "out": "Builds/StoreArt/final/05_climb.jpg",
+      "zoom": 1.3, "cx": 0.55, "cy": 0.5,
+      "title": "CLIMB HIGHER", "titleSize": 104, "sub": "The higher you go, the wilder it gets" }
+  ]
+}

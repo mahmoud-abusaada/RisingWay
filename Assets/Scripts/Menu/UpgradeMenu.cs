@@ -35,6 +35,8 @@ public class UpgradeMenu : MonoBehaviour
     private float boltLevel = 0;
     private float chanceOldLevel = 0;
     private float chanceLevel = 0;
+    private UpgradeMenuSkin skin;
+    private UpgradeMenuSkin.Card doublePointsCard, boltCard, chanceCard;
 
     void Awake()
     {
@@ -42,6 +44,20 @@ public class UpgradeMenu : MonoBehaviour
         doublePointsSlider.maxValue = Utility.Constants.DOUBLE_POINTS_MAX_LEVEL;
         boltSlider.maxValue = Utility.Constants.BOLT_MAX_LEVEL;
         chanceSlider.maxValue = Utility.Constants.CHANCE_MAX_LEVEL;
+
+        // The Nebula look (UiKit), tried here first.
+        skin = gameObject.AddComponent<UpgradeMenuSkin>();
+        skin.BuildHeader(transform.Find("TitleContainer/Title").GetComponent<TMP_Text>(),
+                         (RectTransform)transform.Find("TitleContainer/DiamondsOwned"));
+        doublePointsCard = skin.BuildCard((RectTransform)transform.Find("DoublePoints"), -420, UiKit.Gold,
+            "Every point counts twice", doublePointsSlider, Utility.Constants.DOUBLE_POINTS_MAX_LEVEL,
+            doublePointsLevelTitle, doublePointsNextLevelTitle, doublePointsUpgradeButton);
+        boltCard = skin.BuildCard((RectTransform)transform.Find("Bolt"), -740, UiKit.Hex("4FA8FF"),
+            "Full speed, and it turns by itself", boltSlider, Utility.Constants.BOLT_MAX_LEVEL,
+            boltLevelTitle, boltNextLevelTitle, boltUpgradeButton);
+        chanceCard = skin.BuildCard((RectTransform)transform.Find("Chance"), -1060, UiKit.Hex("FF5C7A"),
+            "Back on the track after a fall", chanceSlider, Utility.Constants.CHANCE_MAX_LEVEL,
+            chanceLevelTitle, chanceNextLevelTitle, chanceUpgradeButton);
     }
 
     // int amountToSubtractInUpdate;
@@ -137,44 +153,60 @@ public class UpgradeMenu : MonoBehaviour
 
     private void updateUI()
     {
-        doublePointsLevelTitle.text = "Level " + PlayerStats.Instance.getDoublePointsLevel() + ": " + Utility.getDoublePointsPeriod() + " Seconds";
-        if (PlayerStats.Instance.getDoublePointsLevel() < Utility.Constants.DOUBLE_POINTS_MAX_LEVEL)
-        {
-            doublePointsNextLevelTitle.text = "Next level: " + Utility.getDoublePointsPeriod(PlayerStats.Instance.getDoublePointsLevel() + 1) + " Seconds";
-        }
-        else
-        {
-            doublePointsNextLevelTitle.text = "Max Level!";
-            doublePointsUpgradeButton.gameObject.SetActive(false);
-            doublePointsSliderContainer.sizeDelta = new Vector2(831.74f, doublePointsSliderContainer.sizeDelta.y);
-            doublePointsSliderContainer.anchoredPosition = new Vector2(84.13f, doublePointsSliderContainer.anchoredPosition.y);
-        }
+        PlayerStats stats = PlayerStats.Instance;
+        int diamonds = stats.getDiamondsCount();
 
-        boltLevelTitle.text = "Level " + PlayerStats.Instance.getBoltLevel() + ": " + Utility.getBoltDistance() + " Meters";
-        if (PlayerStats.Instance.getBoltLevel() < Utility.Constants.BOLT_MAX_LEVEL)
-        {
-            boltNextLevelTitle.text = "Next level: " + Utility.getBoltDistance(PlayerStats.Instance.getBoltLevel() + 1) + " Meters";
-        }
-        else
-        {
-            boltNextLevelTitle.text = "Max Level!";
-            boltUpgradeButton.gameObject.SetActive(false);
-            boltSliderContainer.sizeDelta = new Vector2(831.74f, boltSliderContainer.sizeDelta.y);
-            boltSliderContainer.anchoredPosition = new Vector2(84.13f, boltSliderContainer.anchoredPosition.y);
-        }
+        int level = stats.getDoublePointsLevel();
+        bool maxed = level >= Utility.Constants.DOUBLE_POINTS_MAX_LEVEL;
+        doublePointsLevelTitle.text = levelText(level, Utility.Constants.DOUBLE_POINTS_MAX_LEVEL);
+        doublePointsNextLevelTitle.text = effectText("Lasts", seconds(Utility.getDoublePointsPeriod()),
+                                                     maxed ? null : seconds(Utility.getDoublePointsPeriod(level + 1)));
+        skin.SetState(doublePointsCard, maxed, diamonds >= Utility.Constants.DOUBLE_POINTS_UPGRADE_PRICE);
 
-        chanceLevelTitle.text = "Level " + PlayerStats.Instance.getChanceLevel() + ": " + Utility.getChanceTimes() + (Utility.getChanceTimes() == 1 ? " Chance" : " Chances");
-        if (PlayerStats.Instance.getChanceLevel() < Utility.Constants.CHANCE_MAX_LEVEL)
-        {
-            chanceNextLevelTitle.text = "Next level: " + Utility.getChanceTimes(PlayerStats.Instance.getChanceLevel() + 1) + " Chances";
-        }
-        else
-        {
-            chanceNextLevelTitle.text = "Max Level!";
-            chanceUpgradeButton.gameObject.SetActive(false);
-            chanceSliderContainer.sizeDelta = new Vector2(831.74f, chanceSliderContainer.sizeDelta.y);
-            chanceSliderContainer.anchoredPosition = new Vector2(84.13f, chanceSliderContainer.anchoredPosition.y);
-        }
+        level = stats.getBoltLevel();
+        maxed = level >= Utility.Constants.BOLT_MAX_LEVEL;
+        boltLevelTitle.text = levelText(level, Utility.Constants.BOLT_MAX_LEVEL);
+        boltNextLevelTitle.text = effectText("Runs", meters(Utility.getBoltDistance()),
+                                             maxed ? null : meters(Utility.getBoltDistance(level + 1)));
+        skin.SetState(boltCard, maxed, diamonds >= Utility.Constants.BOLT_UPGRADE_PRICE);
+
+        level = stats.getChanceLevel();
+        maxed = level >= Utility.Constants.CHANCE_MAX_LEVEL;
+        chanceLevelTitle.text = levelText(level, Utility.Constants.CHANCE_MAX_LEVEL);
+        chanceNextLevelTitle.text = effectText("Saves", times(Utility.getChanceTimes()),
+                                               maxed ? null : times(Utility.getChanceTimes(level + 1)));
+        skin.SetState(chanceCard, maxed, diamonds >= Utility.Constants.CHANCE_UPGRADE_PRICE);
+    }
+
+    private static string levelText(int level, int max)
+    {
+        return "LV " + level + "/" + max;
+    }
+
+    // "Lasts 5s   NEXT 10s": what the power-up does now, and at the next level in the accent
+    // colour (at the top level the MAX badge says the rest). Plain letters: the font has no arrows.
+    private static string effectText(string verb, string now, string next)
+    {
+        string text = "<color=" + UiKit.HexOf(UiKit.TextDim) + ">" + verb + "</color> " + now;
+        if (next == null)
+            return text;
+        return text + "    <size=75%><color=" + UiKit.HexOf(UiKit.TextDim) + ">NEXT</color></size> <color=" +
+               UiKit.HexOf(UiKit.Cyan) + ">" + next + "</color>";
+    }
+
+    private static string seconds(float s)
+    {
+        return s.ToString("0.#") + "s";
+    }
+
+    private static string meters(float m)
+    {
+        return m.ToString("0") + " m";
+    }
+
+    private static string times(float n)
+    {
+        return n.ToString("0") + (n == 1 ? " fall" : " falls");
     }
 
     public void Back()
@@ -211,6 +243,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 doublePointsLevel++;
                 updateUI();
+                celebrate(doublePointsCard, PlayerStats.Instance.getDoublePointsLevel(), Utility.Constants.DOUBLE_POINTS_UPGRADE_PRICE);
                 GameAnalytics.Upgraded("double_points", PlayerStats.Instance.getDoublePointsLevel(), Utility.Constants.DOUBLE_POINTS_UPGRADE_PRICE);
             }
         }
@@ -232,6 +265,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 boltLevel++;
                 updateUI();
+                celebrate(boltCard, PlayerStats.Instance.getBoltLevel(), Utility.Constants.BOLT_UPGRADE_PRICE);
                 GameAnalytics.Upgraded("bolt", PlayerStats.Instance.getBoltLevel(), Utility.Constants.BOLT_UPGRADE_PRICE);
             }
         }
@@ -253,6 +287,7 @@ public class UpgradeMenu : MonoBehaviour
                 shouldUpdateDiamonds = true;
                 chanceLevel++;
                 updateUI();
+                celebrate(chanceCard, PlayerStats.Instance.getChanceLevel(), Utility.Constants.CHANCE_UPGRADE_PRICE);
                 GameAnalytics.Upgraded("chance", PlayerStats.Instance.getChanceLevel(), Utility.Constants.CHANCE_UPGRADE_PRICE);
             }
         }
@@ -260,6 +295,13 @@ public class UpgradeMenu : MonoBehaviour
         {
             showNotEnoughDiamondsDialog();
         }
+    }
+
+    private void celebrate(UpgradeMenuSkin.Card card, int level, int price)
+    {
+        skin.Celebrate(card, level, price);
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayUpgrade(level);
     }
 
     private void showNotEnoughDiamondsDialog()

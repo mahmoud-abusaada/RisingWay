@@ -22,6 +22,15 @@ public class MoveToPosition : MonoBehaviour
         isMoving = true;
     }
 
+    /// <summary>Stops a move without calling its action: the run it belonged to is over.</summary>
+    public void Cancel()
+    {
+        isMoving = false;
+        action = null;
+        timeElapsed = 0;
+        velocity = Vector3.zero;
+    }
+
     public float smoothTime = 100f;
     private Vector3 velocity = Vector3.zero;
     void FixedUpdate()

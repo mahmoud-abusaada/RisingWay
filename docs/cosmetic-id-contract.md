@@ -53,7 +53,7 @@ lists change.
 
 | Category | Field | Range | Count shipped |
 |---|---|---|---:|
-| Balls | `ballMaterials` | 1–72 | 72 |
+| Balls | `ballMaterials` | 1–76 | 72 (+4 in 1.0.2) |
 | Floors (colour) | `floorMaterials` | 1–12 | 12 |
 | Floors (pattern) | `patternFloorMaterials` | 101–140 | 40 |
 
@@ -96,6 +96,13 @@ why their ranges must never overlap. `getCombinedFloorsList()` merges them and
 | 64 | Neptune | 65 | Venus Atmo | 66 | Venus |
 | 67 | Bright Star 1 | 68 | Bright Star 2 | 69 | Bright Star 3 |
 | 70 | Bright Star 4 | 71 | Bright Star 5 | 72 | Bright Star 6 |
+
+Added in 1.0.2 (box exclusives, price -1; ball material in `Materials/Balls/Black Holes`, disk in `Resources/BlackHoles/<name> Lens`):
+
+| ID | Material | ID | Material |
+|---:|---|---:|---|
+| 73 | Black Hole | 74 | Black Hole Blue |
+| 75 | Black Hole Crimson | 76 | Black Hole Violet |
 
 ### Floors, colour — `floorMaterials` (12)
 

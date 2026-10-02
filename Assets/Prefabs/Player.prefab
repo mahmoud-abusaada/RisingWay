@@ -675,6 +675,7 @@ MonoBehaviour:
   spawningEffect: {fileID: 0}
   doublePointsAmbient: {fileID: 0}
   boltAmbient: {fileID: 0}
+  blackHoleLensMaterial: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
 --- !u!1 &7572157958569269159
 GameObject:
   m_ObjectHideFlags: 0

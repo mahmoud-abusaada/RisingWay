@@ -141,7 +141,12 @@ public class Moons : MonoBehaviour
             saturnRing.localPosition = Vector3.zero;
             saturnRing.localEulerAngles = moons[0].rotation;
             saturnRing.localScale = new Vector3(0.5f, 0.5f, 0.5f);
-            if (transform.CompareTag("Player") || transform.CompareTag("Planet"))
+            if (transform.CompareTag("Player"))
+            {
+                saturnRing.GetComponent<Renderer>().material.renderQueue = SeeThrough.GROUP_QUEUE + 1;
+                SeeThrough.Add(saturnRing.GetComponent<Renderer>());
+            }
+            else if (transform.CompareTag("Planet"))
             {
                 saturnRing.GetComponent<Renderer>().material.renderQueue = 2011;
             }
@@ -179,6 +184,7 @@ public class Moons : MonoBehaviour
 
             // Transform newMoon = Instantiate(moon, Vector3.zero, Quaternion.identity, newMoonRotatingParent);
             Transform newMoon = partsPool.getPart(Parts.Moon);
+            SeeThrough.Remove(newMoon.GetComponent<Renderer>()); // pooled: it may have been the player's
             newMoon.parent = newMoonRotatingParent;
             newMoon.localPosition = new Vector3(0, 0, moons[i].distance);
             float scale = moons[i].scale / 2;
@@ -231,7 +237,9 @@ public class Moons : MonoBehaviour
                     newMoon.GetComponent<Renderer>().material = moons[i].material;
                 DrawCircle(newMoonOrbit, moons[i].distance, 0.007f);
 
-                newMoon.GetComponent<Renderer>().material.renderQueue = 2011;
+                newMoon.GetComponent<Renderer>().material.renderQueue = SeeThrough.GROUP_QUEUE;
+                SeeThrough.Add(newMoon.GetComponent<Renderer>());
+                SeeThrough.Add(newMoonOrbit.GetComponent<Renderer>());
             }
 
             newMoonOrbit.localEulerAngles = moons[i].rotation;
@@ -260,7 +268,9 @@ public class Moons : MonoBehaviour
 
         if (transform.CompareTag("Player"))
         {
-            GetComponent<Renderer>().material.renderQueue = 2011;
+            // Seen through the track, with its moons (SeeThrough; PlayerLinkedObjectsController
+            // does the ball's own renderers).
+            GetComponent<Renderer>().material.renderQueue = SeeThrough.GROUP_QUEUE;
         }
     }
 
@@ -295,6 +305,7 @@ public class Moons : MonoBehaviour
         {
             foreach (Transform moon in moonTransforms)
             {
+                SeeThrough.Remove(moon.GetComponent<Renderer>());
                 partsPool.setPart(moon);
             }
             moonTransforms.Clear();

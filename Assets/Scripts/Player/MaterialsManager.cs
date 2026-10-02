@@ -45,6 +45,23 @@ public class MaterialsManager : MonoBehaviour
     // PlayerPrefs.HasKey, so any value - including 0 - counted as owned. Ownership is now an
     // explicit list in the save file.
 
+    private static readonly string[] solarBallNames =
+        { "Earth", "Moon", "Sun", "Ceres", "Haumea", "Jupiter", "Make Make", "Mars", "Mercury", "Uranus", "Saturn", "Neptune", "Venus", "Bright", "Black Hole" };
+
+    /// <summary>
+    /// A planet, moon, the Sun, a bright star or the black hole. These are drawn as themselves - no white outline
+    /// ring, which suits a plain coloured ball but made a planet look like a sticker.
+    /// </summary>
+    public static bool isSolarBall(Material m)
+    {
+        if (m == null)
+            return false;
+        foreach (string n in solarBallNames)
+            if (m.name.Contains(n))
+                return true;
+        return false;
+    }
+
     public ColorMaterial getSelectedBallMaterial()
     {
         if (selectedBallMaterial == null)

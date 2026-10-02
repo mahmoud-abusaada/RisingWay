@@ -130,3 +130,6 @@ ehthumbs.db
 # Unity 6 build profiles: created by the Build window, not used by RisingWayBuilder.
 /Assets/Settings/
 /Assets/Settings.meta
+
+# Python bytecode from the Tools/ scripts
+__pycache__/

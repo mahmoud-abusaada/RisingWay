@@ -17,6 +17,20 @@ public class SolarSystem : MonoBehaviour
     [SerializeField] private Material uranus;
     [SerializeField] private Material neptune;
     [SerializeField] private Material pluto;
+    // The look of it (SpaceSkySetup makes and assigns these): a glow around the Sun that does not
+    // need bloom, thin fading trails, Saturn's rings. Left empty, each is simply not used.
+    [SerializeField] private Material coronaMaterial;
+    [SerializeField] private Material trailMaterial;
+    [SerializeField] private Material ringMaterial;
+    // The planets are drawn this much larger than the orbits' scale would make them: at true
+    // proportion they are a pixel or two across from the track.
+    [SerializeField] private float planetSize = 1.7f;
+
+    private static readonly int SunPositionId = Shader.PropertyToID("_SunPosition");
+    private const int SATURN = 5;
+    private static readonly Color SunTrailColour = new Color(1f, 0.78f, 0.42f);
+    private static readonly Color PlanetTrailColour = new Color(0.62f, 0.74f, 1f);
+    private Mesh quad;
 
     private Transform myMoonsParent;
     private List<Transform> planetTransforms = new List<Transform>();
@@ -31,6 +45,8 @@ public class SolarSystem : MonoBehaviour
     {
         parent.localPosition = new Vector3(0, -120, 1500);
         sunTrail.gameObject.SetActive(true);
+        styleTrail(sunTrail.GetComponent<TrailRenderer>(), SunTrailColour, 2.2f, 0.9f);
+        addCorona();
         setMoons();
         parent.localScale = new Vector3(120, 120, 120);
         parent.localEulerAngles = new Vector3(0, -15, 15);
@@ -88,7 +104,7 @@ public class SolarSystem : MonoBehaviour
 
             Transform newMoon = Instantiate(planet, Vector3.zero, Quaternion.identity, newMoonRotatingParent);
             newMoon.localPosition = new Vector3(0, 0, moons[i].distance);
-            float scale = moons[i].scale;
+            float scale = moons[i].scale * planetSize;
 
             newMoon.localScale = new Vector3(scale, scale, scale);
 
@@ -102,7 +118,73 @@ public class SolarSystem : MonoBehaviour
             planetTransforms.Add(newMoon);
             moonRotatingTransforms.Add(newMoonRotatingParent);
             newMoon.GetChild(0).gameObject.SetActive(true);
+            styleTrail(newMoon.GetChild(0).GetComponent<TrailRenderer>(), PlanetTrailColour, 0.7f, 0.5f);
+            if (i == SATURN)
+                addRings(newMoon);
         }
+    }
+
+    // A trail that is a thin line of light fading to nothing, not a solid ribbon.
+    private void styleTrail(TrailRenderer trail, Color colour, float width, float strength)
+    {
+        if (trail == null || trailMaterial == null)
+            return;
+        trail.sharedMaterial = trailMaterial;
+        trail.widthMultiplier = width;
+        trail.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.25f));
+        Gradient fade = new Gradient();
+        fade.SetKeys(
+            new[] { new GradientColorKey(colour, 0f), new GradientColorKey(colour, 1f) },
+            new[] { new GradientAlphaKey(strength, 0f), new GradientAlphaKey(strength * 0.35f, 0.35f), new GradientAlphaKey(0f, 1f) });
+        trail.colorGradient = fade;
+        trail.numCapVertices = 0;
+        trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    private void addCorona()
+    {
+        if (coronaMaterial == null)
+            return;
+        Transform sun = sunTrail.parent;
+        GameObject corona = new GameObject("Corona");
+        corona.layer = sun.gameObject.layer;
+        corona.transform.SetParent(sun, false);
+        corona.AddComponent<MeshFilter>().sharedMesh = unitQuad();
+        MeshRenderer r = corona.AddComponent<MeshRenderer>();
+        r.sharedMaterial = coronaMaterial;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    // Saturn: tipped over by its 27 degrees, with the rings in its equator.
+    private void addRings(Transform saturn)
+    {
+        saturn.localRotation = Quaternion.Euler(27f, 0f, 0f);
+        if (ringMaterial == null)
+            return;
+        GameObject rings = new GameObject("Rings");
+        rings.layer = saturn.gameObject.layer;
+        rings.transform.SetParent(saturn, false);
+        rings.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        rings.transform.localScale = Vector3.one * 2.35f; // out to 2.35 of the planet's radius
+        rings.AddComponent<MeshFilter>().sharedMesh = unitQuad();
+        MeshRenderer r = rings.AddComponent<MeshRenderer>();
+        r.sharedMaterial = ringMaterial;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    private Mesh unitQuad()
+    {
+        if (quad == null)
+        {
+            quad = new Mesh { name = "Unit Quad" };
+            quad.vertices = new[] { new Vector3(-0.5f, -0.5f, 0), new Vector3(0.5f, -0.5f, 0), new Vector3(0.5f, 0.5f, 0), new Vector3(-0.5f, 0.5f, 0) };
+            quad.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
+            quad.colors = new[] { Color.white, Color.white, Color.white, Color.white };
+            quad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            // The corona is drawn around its centre whichever way the quad itself faces.
+            quad.bounds = new Bounds(Vector3.zero, Vector3.one * 30f);
+        }
+        return quad;
     }
 
     public void clearMoons()
@@ -122,6 +204,8 @@ public class SolarSystem : MonoBehaviour
     {
         if (myMoonsParent != null)
             myMoonsParent.position = parent.position;
+        // Where the planets' light comes from (Planet.shader).
+        Shader.SetGlobalVector(SunPositionId, sunTrail.parent.position);
 
         for (int i = 0; i < planetTransforms.Count; i++)
         {

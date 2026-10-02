@@ -8,8 +8,11 @@
 //   diamonds jackpot, a box-only ball, a pattern floor, 5 bolts, 200 diamonds.
 // The prizes are real grants - this is for test devices.
 //
-// Deliberately excluded from release builds.
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+// A second marker, "unlock-all", owns every ball and floor, for store pictures of the collection.
+//
+// Deliberately excluded from release builds. Also compiled into the store-capture build
+// (RisingWayBuilder.BuildAndroidApkReleaseCheck -define STORE_CAPTURE), which is never uploaded.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || STORE_CAPTURE
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -28,6 +31,12 @@ public static class MysteryBoxRevealTest
         }
         if (stats.getBoxesCount() < 5)
             stats.addBoxes(30 - stats.getBoxesCount());
+        if (File.Exists(Path.Combine(Application.persistentDataPath, "unlock-all")))
+        {
+            MaterialsManager materials = Object.FindAnyObjectByType<MaterialsManager>();
+            foreach (ColorMaterial m in materials.getBallsMaterials()) stats.unlockBall(m.id);
+            foreach (BaseMaterial m in materials.getCombinedFloorsList()) stats.unlockFloor(m.id);
+        }
         MysteryBoxPrizes.DebugOverride = Cycle;
         Debug.Log("[MysteryBoxRevealTest] active: boxes topped up, prizes cycle through each rarity");
     }

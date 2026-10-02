@@ -19,6 +19,7 @@ public class PlayerMovement : MonoBehaviour
     private MaterialsManager materialsManager;
     private MoveToPosition moveToPosition;
     private InGameUI inGameUi;
+    private PickUpsManager pickUpsManager;
     private float startSpeed;
     public int timesRespawnedAfterChancePickedUp = 0;
 
@@ -26,7 +27,10 @@ public class PlayerMovement : MonoBehaviour
     // Movement model
     //
     // While the ball is on the track this script decides exactly where it goes every physics step:
-    //   - horizontal speed is exactly `speed`, on flat parts and ramps alike;
+    //   - the ball moves at exactly `speed` along the track: on flat parts that is all horizontal,
+    //     on a ramp part of it goes into climbing (slopeFactor). It used to be `speed` across the
+    //     ground on ramps too, which made the ball visibly faster going up - over 20% on the
+    //     steepest part;
     //   - vertical position is the height at which the ball rests on the track at the end of the
     //     step, found with a sphere cast of the ball's own size, so ramps and the seams between
     //     parts no longer kick it. The old code zeroed vertical speed on alternate steps and left
@@ -52,17 +56,43 @@ public class PlayerMovement : MonoBehaviour
     private const float MAX_SLOPE_PER_STEP = 1.19f;
     // Surfaces steeper than about 70 degrees are walls, not track.
     private const float MIN_GROUND_NORMAL_Y = 0.35f;
-    // Visual spin cap. Physics used to clamp spin to 7 rad/s (the project's default max angular
-    // speed), and that is the look the game shipped with, so it is kept.
-    private const float MAX_VISUAL_SPIN = 7f;
+    // How the ball spins. ROLL_LOOK of true rolling (speed / radius): on a real rolling ball the
+    // top moves at twice the ball's speed over the track, and from this camera, looking down on
+    // it, true rolling reads as spinning faster than the ball goes - the playtest said so at 1.0.
+    // Never more than MAX_SPIN_PER_FRAME between two frames on screen: past ~34 degrees a frame the
+    // texture strobes (at top speed, with the game's 1.2 time scale, true rolling is 64 degrees a
+    // frame at 60 fps; a bolt is three times that). It used to be capped at 7 rad/s, the project's
+    // default max angular speed, and visibly rolled slower than it moved. MAX_SPIN only guards
+    // against nonsense.
+    private const float ROLL_LOOK = 0.75f;
+    private const float MAX_SPIN_PER_FRAME = 0.6f; // radians
+    private const float MAX_SPIN = 100f;
+    private float frameSeconds = 1f / 60f;         // smoothed real time between rendered frames
     // Radius of the probe that checks there is track under the ball's centre: small, so the ball
     // falls off an edge once its centre is past it, as a real ball does; not zero, so it cannot
     // slip between two parts at a seam.
     private const float SUPPORT_PROBE_RADIUS = 0.04f;
 
     private float ballRadius = 0.25f;
+    // How much of the ball's speed goes across the ground, from the slope of the track along the
+    // way it is going (1 on the flat, about 0.79 up the steepest ramp). Only the slope along the
+    // direction of travel counts: a ball riding a part's rounded edge leans sideways, not uphill.
+    private float slopeFactor = 1f;
+    private const float MIN_SLOPE_FACTOR = 0.6f;
     private int groundMask;
     private Transform pendingAutoTurnPart;
+    // How far before the centre of pendingAutoTurnPart the ball turns: 0 for the game's own turns.
+    private float pendingTurnLead;
+    // Early-tap grace (a trial - set EARLY_TAP_SECONDS to 0 to switch it off). A tap this long
+    // before the ball reaches a turn part used to turn it there and then, off the track; at top
+    // speed that is a tap 20 ms too soon. Now such a tap is kept, and the ball turns as soon as it
+    // is on the part, EARLY_TAP_INSET past its near edge - as does a tap on the part's first
+    // EARLY_TAP_INSET, which used to turn the ball onto the very edge of the next leg. In seconds
+    // the player feels (real time), never quite as far ahead as one part is long (turnPartJustAhead).
+    private const float EARLY_TAP_SECONDS = 0.15f;
+    private const float EARLY_TAP_MAX_DISTANCE = 2.4f;
+    private const float EARLY_TAP_INSET = 0.3f;
+    private const float HALF_PART = 1.25f;
     // The part under the ball's centre while it is on the track, and the part the ball last
     // turned on by itself (auto-pilot, bolt, one-tap), so that one part never turns it twice.
     private Transform groundPart;
@@ -93,6 +123,7 @@ public class PlayerMovement : MonoBehaviour
         SphereCollider sphere = GetComponent<SphereCollider>();
         Vector3 scale = transform.lossyScale;
         ballRadius = sphere.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        myRB.maxAngularVelocity = MAX_SPIN; // PhysX would clamp the roll to its default, 7 rad/s
         sphere.sharedMaterial = new PhysicsMaterial("Ball (frictionless)")
         {
             staticFriction = 0,
@@ -139,10 +170,15 @@ public class PlayerMovement : MonoBehaviour
 
     public void resetPlayerValues()
     {
+        // A chance's respawn, or the move into position, may still be under way (paused, then
+        // Home or Restart): finished later, it would build the chance's path into the next game.
+        moveToPosition.Cancel();
+        timesRespawnedAfterChancePickedUp = 0;
         stopInterpolation();
         pendingAutoTurnPart = null;
         groundPart = partTurnedOn = null;
         drivenOnTrack = false;
+        slopeFactor = 1f;
         myRB.isKinematic = true;
         transform.position = previewPosition;
         transform.localRotation = Quaternion.Euler(0, 0, 15);
@@ -157,7 +193,13 @@ public class PlayerMovement : MonoBehaviour
         GetComponent<MeshRenderer>().material = materialsManager.getSelectedBallMaterial().material;
         GetComponent<Moons>().setMoons();
         GetComponent<PlayerLinkedObjectsController>().prepareLinkedObjects(false);
-        GetComponent<Outline>().enabled = !(GetComponent<MeshRenderer>().material.name.Contains("Earth") || GetComponent<MeshRenderer>().material.name.Contains("Saturn") || GetComponent<MeshRenderer>().material.name.Contains("Bright"));
+        GetComponent<Outline>().enabled = !MaterialsManager.isSolarBall(GetComponent<MeshRenderer>().material);
+    }
+
+    void Update()
+    {
+        if (Time.unscaledDeltaTime > 0f && Time.unscaledDeltaTime < 0.25f)
+            frameSeconds = Mathf.Lerp(frameSeconds, Time.unscaledDeltaTime, 0.05f);
     }
 
     void FixedUpdate()
@@ -210,7 +252,7 @@ public class PlayerMovement : MonoBehaviour
                     startSpeed = Utility.Constants.TUTORIAL_PLAYER_SPEED;
                     if (inGameUi == null)
                         inGameUi = FindObjectOfType<InGameUI>();
-                    inGameUi.showTutorialInfo();
+                    inGameUi.startTutorial();
                 }
                 else
                     startSpeed = Utility.Constants.START_PLAYER_SPEED;
@@ -226,6 +268,7 @@ public class PlayerMovement : MonoBehaviour
         pendingAutoTurnPart = null;
         groundPart = partTurnedOn = null;
         drivenOnTrack = false;
+        slopeFactor = 1f;
         Utility.spawningAfterChance = true;
         myRB.isKinematic = false;
         cameraController.PlayChanceTakenEffect();
@@ -254,6 +297,65 @@ public class PlayerMovement : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// A bolt has just started: from here the game turns the ball and takes no taps. If the ball
+    /// is on a turn part it has not turned on - the bolt button pressed at the corner instead of a
+    /// tap - that turn is the game's to make: at the part's centre if the ball has yet to reach it,
+    /// here and now if it is past. (move() queues such a part too, but a step later, and from the
+    /// last stretch of the part that was a step too late: the ball ran off the end.)
+    /// </summary>
+    public void boltStarted()
+    {
+        if (groundPart == null || !isTurnPart(groundPart) || groundPart == partTurnedOn ||
+            direction != pathDirectionOf(groundPart))
+            return;
+        Vector3 forward = directionVector(direction);
+        Vector3 toCentre = groundPart.position - myRB.position;
+        if (toCentre.x * forward.x + toCentre.z * forward.z > 0f)
+            queueAutoTurn(groundPart);
+        else
+            turnForPart(groundPart);
+    }
+
+    /// <summary>
+    /// A turn from the left/right and swipe controls. On a turn part, once the ball has turned the
+    /// way the part goes, that part is done: a second tap or swipe there - a bounce, a second
+    /// finger - used to turn the ball again, straight off the track. One-tap has always had this
+    /// (autoTurn). Anywhere else, and after a wrong turn, the player turns freely as before.
+    /// </summary>
+    public void manualTurn(bool left)
+    {
+        if (playerStats.isTutorialsOn())
+        {
+            tutorialTurn(left);
+            return;
+        }
+        Transform ahead = turnPartJustAhead();
+        if (ahead != null && left == ahead.CompareTag("LandLeft"))
+        {
+            queueEarlyTurn(ahead);
+            return;
+        }
+        if (groundPart != null && isTurnPart(groundPart))
+        {
+            if (groundPart == partTurnedOn)
+                return;
+            if (left == groundPart.CompareTag("LandLeft"))
+            {
+                if (justOnto(groundPart))
+                {
+                    queueEarlyTurn(groundPart);
+                    return;
+                }
+                partTurnedOn = groundPart;
+            }
+        }
+        if (left)
+            turnLeft();
+        else
+            turnRight();
+    }
+
     public void turnRight()
     {
         // Any turn settles the ball's direction for this part, so a queued auto-turn must not fire
@@ -270,6 +372,8 @@ public class PlayerMovement : MonoBehaviour
         direction = (Directions)currentDirection;
 
         cameraController.turnRight();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayTurn();
 
         // The cast that used to be here read pathMaker.nextDirection into an unused variable and
         // threw if it was null - which a manual turn can be.
@@ -294,6 +398,8 @@ public class PlayerMovement : MonoBehaviour
         direction = (Directions)currentDirection;
 
         cameraController.turnLeft();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayTurn();
 
         Utility.shouldDequeue = false;
 
@@ -302,6 +408,11 @@ public class PlayerMovement : MonoBehaviour
 
     public void autoTurn()
     {
+        if (playerStats.isTutorialsOn())
+        {
+            tutorialTurn(null);
+            return;
+        }
         // One-tap: when the ball is on a turn part, that part decides. The direction the parts'
         // Destroyer triggers leave in pathMaker.nextDirection was missed when the ball ran near a
         // part's edge (the triggers are smaller than the parts, so that two turn parts side by side
@@ -313,12 +424,22 @@ public class PlayerMovement : MonoBehaviour
                       " next=" + (pathMaker.nextDirection.HasValue ? pathMaker.nextDirection.Value.nextDistination.ToString() : "null") +
                       " ball " + myRB.position.ToString("F2") + " heading " + direction);
 #endif
-        if (groundPart != null && isTurnPart(groundPart))
+        if (groundPart != null && isTurnPart(groundPart) && groundPart != partTurnedOn)
         {
-            if (groundPart != partTurnedOn)
+            if (justOnto(groundPart))
+                queueEarlyTurn(groundPart);
+            else
                 turnForPart(groundPart);
             return;
         }
+        Transform ahead = turnPartJustAhead();
+        if (ahead != null)
+        {
+            queueEarlyTurn(ahead);
+            return;
+        }
+        if (groundPart != null && isTurnPart(groundPart))
+            return; // already turned here
 
         if (pathMaker.nextDirection == null)
             return;
@@ -332,11 +453,70 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
+    /// A tap or swipe in the tutorial (InGameUI): it can only do the right thing. On the turn part
+    /// the ball is coming to, or just before it, it turns the ball the way the part goes; anywhere
+    /// else, or for the wrong side, nothing happens and the player is told why.
+    /// <paramref name="left"/> is the side chosen, null for one-tap.
+    /// </summary>
+    private void tutorialTurn(bool? left)
+    {
+        if (inGameUi == null)
+            inGameUi = FindObjectOfType<InGameUI>();
+        if (pendingAutoTurnPart != null)
+            return; // this turn is already on its way
+        Transform part = groundPart != null && isTurnPart(groundPart) && groundPart != partTurnedOn &&
+                         direction == pathDirectionOf(groundPart) ? groundPart : turnPartJustAhead();
+        if (part == null)
+        {
+            // A second tap on the part it has just turned on is not a mistake.
+            if (groundPart == null || groundPart != partTurnedOn)
+                inGameUi.tutorialTapIgnored(false);
+            return;
+        }
+        if (left.HasValue && left.Value != part.CompareTag("LandLeft"))
+        {
+            inGameUi.tutorialTapIgnored(true);
+            return;
+        }
+        bool wasStopped = Utility.stoppedForTutorials;
+        if (part == groundPart && !justOnto(part))
+            turnForPart(part);
+        else
+            queueEarlyTurn(part);
+        inGameUi.tutorialTurned(wasStopped);
+    }
+
+    /// <summary>The tutorial was skipped: a ball waiting at a turn is turned and sent on its way.</summary>
+    public void tutorialSkipped()
+    {
+        if (Utility.stoppedForTutorials && groundPart != null && isTurnPart(groundPart) && groundPart != partTurnedOn)
+            turnForPart(groundPart);
+        keepGoingAfterTutorial();
+    }
+
+    /// <summary>The way the ball is going.</summary>
+    public Vector3 forward()
+    {
+        return directionVector(direction);
+    }
+
+    /// <summary>Whether the ball is heading along the path onto this turn part, not yet turned on it.</summary>
+    public bool isComingTo(Transform turnPart)
+    {
+        return turnPart != partTurnedOn && direction == pathDirectionOf(turnPart);
+    }
+
+    /// <summary>
     /// Bolt / auto-pilot: turn when the ball reaches the centre of <paramref name="turnPart"/>.
     /// The turn itself happens inside the physics step that crosses the centre (see move()).
     /// </summary>
     public void queueAutoTurn(Transform turnPart)
     {
+        // One part turns the ball once. It may already have - a tap, or a bolt collected on it -
+        // by the time its auto-pilot trigger reports the ball: turning again sent the ball back
+        // the way it came.
+        if (turnPart == partTurnedOn)
+            return;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (DebugMovement)
         {
@@ -348,6 +528,46 @@ public class PlayerMovement : MonoBehaviour
         }
 #endif
         pendingAutoTurnPart = turnPart;
+        pendingTurnLead = 0f;
+    }
+
+    // The turn part the ball will be on within EARLY_TAP_SECONDS, if it is coming to one along the
+    // path. Parts are HALF_PART each way and the look-ahead no longer than a part, so the point
+    // that far ahead is on that part whenever its near edge is within reach.
+    private Transform turnPartJustAhead()
+    {
+        if (EARLY_TAP_SECONDS <= 0f || !drivenOnTrack || Utility.stoppedForTutorials)
+            return null;
+        float reach = Mathf.Min(speed * Time.timeScale * EARLY_TAP_SECONDS, EARLY_TAP_MAX_DISTANCE);
+        Vector3 from = myRB.position + directionVector(direction) * reach + Vector3.up * 1.5f;
+        RaycastHit hit;
+        if (!Physics.Raycast(from, Vector3.down, out hit, 3f, groundMask, QueryTriggerInteraction.Ignore))
+            return null;
+        Transform part = partOf(hit.collider);
+        if (part == null || part == groundPart || part == partTurnedOn || part == pendingAutoTurnPart ||
+            !isTurnPart(part) || pathDirectionOf(part) != direction || pathMaker.isNotGroundYet(part))
+            return null;
+        return part;
+    }
+
+    // On the first EARLY_TAP_INSET of a turn part it is coming onto along the path.
+    private bool justOnto(Transform turnPart)
+    {
+        if (EARLY_TAP_SECONDS <= 0f || !drivenOnTrack || direction != pathDirectionOf(turnPart))
+            return false;
+        Vector3 forward = directionVector(direction);
+        Vector3 toCentre = turnPart.position - myRB.position;
+        return toCentre.x * forward.x + toCentre.z * forward.z > HALF_PART - EARLY_TAP_INSET;
+    }
+
+    private void queueEarlyTurn(Transform turnPart)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DebugMovement)
+            Debug.Log("[Tap] early, kept for " + turnPart.tag + " at " + turnPart.position.ToString("F2") + " ball " + myRB.position.ToString("F2"));
+#endif
+        pendingAutoTurnPart = turnPart;
+        pendingTurnLead = HALF_PART - EARLY_TAP_INSET;
     }
 
     /// <summary>
@@ -441,6 +661,7 @@ public class PlayerMovement : MonoBehaviour
         {
             speed = startSpeed;
             Utility.stoppedForTutorials = false;
+            playerTrigger.tutorialTurnDone();
             playerTrigger.stopTutorialAnimation();
         }
     }
@@ -461,10 +682,11 @@ public class PlayerMovement : MonoBehaviour
         Vector3 position = myRB.position;
         float dt = Time.fixedDeltaTime;
         Vector3 forward = directionVector(direction);
-        Vector3 velocity = forward * speed;
+        float moveSpeed = speed * slopeFactor; // across the ground
+        Vector3 velocity = forward * moveSpeed;
 
         if (pendingAutoTurnPart != null)
-            velocity = applyPendingAutoTurn(position, forward, velocity, dt);
+            velocity = applyPendingAutoTurn(position, forward, velocity, dt, moveSpeed);
 
         // Where the ball will be horizontally at the end of this step, and the height at which it
         // rests on the track there.
@@ -480,6 +702,30 @@ public class PlayerMovement : MonoBehaviour
             // collisions") - measured as hops of up to half the ball's radius and one-step speed
             // drops to 64% at the seams.
             drivenOnTrack = true;
+            if (pathMaker != null)
+                pathMaker.ballIsOn(groundPart);
+            // The bolt ends on its straight: normally its trigger says so (PlayerTrigger); this is
+            // the same check from the ground under the ball, which does not depend on a trigger.
+            if (Utility.boltIsOn)
+            {
+                if (pickUpsManager == null)
+                    pickUpsManager = FindObjectOfType<PickUpsManager>();
+                pickUpsManager.checkBoltEnd(groundPart);
+            }
+            // While the game turns the ball itself (a bolt, auto-pilot), the turn part under it
+            // must be queued. Its trigger queues it as the ball rolls on - but not if the bolt
+            // started with the ball already on the part (the bolt button; taps are off during a
+            // bolt), and then the ball ran straight off the track.
+            if (pendingAutoTurnPart == null && groundPart != null && groundPart != partTurnedOn &&
+                isTurnPart(groundPart) && (Utility.boltIsOn || playerStats.isAutoPilotOn()) &&
+                direction == pathDirectionOf(groundPart))
+                queueAutoTurn(groundPart);
+            // The slope ahead, for the next step's speed across the ground: rise per unit of
+            // travel is -(n . forward) / n.y. Eased, so the seams between parts do not jolt it.
+            Vector3 travel = new Vector3(velocity.x, 0f, velocity.z).normalized;
+            float rise = -Vector3.Dot(groundNormal, travel) / Mathf.Max(groundNormal.y, 0.2f);
+            float wantedFactor = Mathf.Clamp(1f / Mathf.Sqrt(1f + rise * rise), MIN_SLOPE_FACTOR, 1f);
+            slopeFactor = Mathf.Lerp(slopeFactor, wantedFactor, 0.5f);
             trackVerticalSpeed = (restHeight - position.y) / dt;
             velocity.y = trackVerticalSpeed;
             // PhysX adds gravity to the velocity during the step; cancel it.
@@ -489,7 +735,10 @@ public class PlayerMovement : MonoBehaviour
             // Roll about the axis perpendicular to the surface and the motion.
             Vector3 rollAxis = Vector3.Cross(groundNormal, new Vector3(velocity.x, 0, velocity.z));
             if (rollAxis.sqrMagnitude > 0.000001f)
-                myRB.angularVelocity = rollAxis.normalized * Mathf.Min(speed / ballRadius, MAX_VISUAL_SPIN);
+            {
+                float visible = MAX_SPIN_PER_FRAME / (frameSeconds * Mathf.Max(Time.timeScale, 0.01f));
+                myRB.angularVelocity = rollAxis.normalized * Mathf.Min(ROLL_LOOK * speed / ballRadius, visible, MAX_SPIN);
+            }
         }
         else if (drivenOnTrack)
         {
@@ -521,7 +770,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private Vector3 applyPendingAutoTurn(Vector3 position, Vector3 forward, Vector3 velocity, float dt)
+    private Vector3 applyPendingAutoTurn(Vector3 position, Vector3 forward, Vector3 velocity, float dt, float moveSpeed)
     {
         if (!pendingAutoTurnPart.gameObject.activeInHierarchy)
         {
@@ -532,13 +781,15 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Vector3 toCentre = pendingAutoTurnPart.position - position;
-        float ahead = toCentre.x * forward.x + toCentre.z * forward.z;
-        float step = speed * dt;
+        float ahead = toCentre.x * forward.x + toCentre.z * forward.z - pendingTurnLead;
+        float step = moveSpeed * dt;
         if (ahead > step)
             return velocity; // the centre is not reached during this step
 
         Transform turningAt = pendingAutoTurnPart;
         pendingAutoTurnPart = null;
+        if (turningAt == partTurnedOn)
+            return velocity; // this part has turned the ball already (see queueAutoTurn)
         turnForPart(turningAt);
 
         Vector3 newForward = directionVector(direction);
@@ -551,7 +802,7 @@ public class PlayerMovement : MonoBehaviour
             return velocity; // nothing to turn to
 
         if (Mathf.Abs(ahead) > step)
-            return newForward * speed; // far off (should not happen): turn in place, as before
+            return newForward * moveSpeed; // far off (should not happen): turn in place, as before
 
         // Finish the old line exactly at the centre and spend the rest of this step on the new
         // line, so the ball ends the step on the new centre line. The one-step chord cuts the
@@ -573,8 +824,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 origin = new Vector3(at.x, currentY + GROUND_PROBE_LIFT, at.z);
         RaycastHit hit;
         bool overTheEdge = false;
-        if (Physics.SphereCast(origin, ballRadius, Vector3.down, out hit, GROUND_PROBE_LIFT + maxDrop,
-                               groundMask, QueryTriggerInteraction.Ignore)
+        if (castToGround(origin, ballRadius, GROUND_PROBE_LIFT + maxDrop, out hit)
             && hit.normal.y >= MIN_GROUND_NORMAL_Y)
         {
             restY = origin.y - hit.distance;
@@ -611,14 +861,48 @@ public class PlayerMovement : MonoBehaviour
         // 1.5 leaves room for the curved pieces.
         float reach = origin.y - (restY - ballRadius * 1.5f);
         RaycastHit support;
-        if (!Physics.SphereCast(origin, SUPPORT_PROBE_RADIUS, Vector3.down, out support, reach,
-                                groundMask, QueryTriggerInteraction.Ignore))
+        if (!castToGround(origin, SUPPORT_PROBE_RADIUS, reach, out support))
             return false;
 
-        // Each part is one kinematic Rigidbody with its colliders below it.
-        Collider c = support.collider;
-        groundPart = c.attachedRigidbody != null ? c.attachedRigidbody.transform : c.transform.parent;
+        groundPart = partOf(support.collider);
         return true;
+    }
+
+    // Each part is one kinematic Rigidbody with its colliders below it.
+    private static Transform partOf(Collider c)
+    {
+        return c.attachedRigidbody != null ? c.attachedRigidbody.transform : c.transform.parent;
+    }
+
+    // A sphere cast down onto the track that passes through the parts that are not ground for the
+    // ball yet: the part after a U-turn, beside the approach to it (PathMaker.notGroundUntil).
+    // With no such part in the way it is the plain SphereCast it always was.
+    private readonly RaycastHit[] groundHits = new RaycastHit[16];
+
+    private bool castToGround(Vector3 origin, float radius, float distance, out RaycastHit hit)
+    {
+        if (!Physics.SphereCast(origin, radius, Vector3.down, out hit, distance, groundMask, QueryTriggerInteraction.Ignore))
+            return false;
+        if (pathMaker == null || !pathMaker.isNotGroundYet(partOf(hit.collider)))
+            return true;
+
+        // The nearest surface belongs to such a part: take the nearest one that does not. Unlike
+        // SphereCast, the NonAlloc version also reports colliders the sphere starts inside, at
+        // distance 0 and point zero; those are skipped to match.
+        int n = Physics.SphereCastNonAlloc(origin, radius, Vector3.down, groundHits, distance, groundMask, QueryTriggerInteraction.Ignore);
+        bool found = false;
+        for (int i = 0; i < n; i++)
+        {
+            RaycastHit h = groundHits[i];
+            if ((h.distance == 0f && h.point == Vector3.zero) || pathMaker.isNotGroundYet(partOf(h.collider)))
+                continue;
+            if (!found || h.distance < hit.distance)
+            {
+                hit = h;
+                found = true;
+            }
+        }
+        return found;
     }
 
     private static bool isTurnPart(Transform part)

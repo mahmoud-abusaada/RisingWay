@@ -54,6 +54,11 @@ public class PartsPool : MonoBehaviour
 
     private static int numberOfInstansiatedParts = 0;
     private BaseMaterial currentFloorMaterial;
+    // The floor each track part last got. The floor is set on the parts in the pool at that moment:
+    // a part out of it then (on the path, or still falling away from the last one) came back with
+    // the old floor, and a part made because the pool ran out had the prefab's - the odd part in
+    // the wrong material. So a part also gets the current floor as it leaves the pool, if it lacks it.
+    private readonly Dictionary<Transform, BaseMaterial> partFloors = new Dictionary<Transform, BaseMaterial>();
     private MaterialsManager materialsManager;
 
     void Awake()
@@ -212,6 +217,10 @@ public class PartsPool : MonoBehaviour
         }
         else if (targetPart != Parts.Moon)
         {
+            BaseMaterial floor;
+            if (currentFloorMaterial != null && (!partFloors.TryGetValue(part, out floor) || floor != currentFloorMaterial))
+                setPartMaterial(part, currentFloorMaterial);
+
             if (part.gameObject.GetComponent<MoveDown>() != null)
                 Destroy(part.gameObject.GetComponent<MoveDown>());
 
@@ -457,6 +466,7 @@ public class PartsPool : MonoBehaviour
         }
 
         material = materialsManager.getLitMaterial(materialsManager.getRuntimeCopy(material), 2010);
+        partFloors[part] = baseMaterial;
 
         if (part.Find("Mesh") != null)
             part.Find("Mesh").GetComponent<Renderer>().material = material;

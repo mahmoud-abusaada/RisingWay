@@ -75,7 +75,7 @@ public class ShopMenu : MonoBehaviour
 
     void OnEnable()
     {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || STORE_CAPTURE
         MysteryBoxRevealTest.Apply(playerStats);
 #endif
         diamondsCount = playerStats.getDiamondsCount();
@@ -250,7 +250,7 @@ public class ShopMenu : MonoBehaviour
         currentBall.GetComponent<MeshRenderer>().material = materialsManager.getSelectedBallMaterial().material;
         currentBall.GetComponent<Moons>().setMoons(true);
         currentBall.GetComponent<PlayerLinkedObjectsController>().prepareLinkedObjects(false);
-        currentBall.GetComponent<Outline>().enabled = !(currentBall.GetComponent<MeshRenderer>().material.name.Contains("Earth") || currentBall.GetComponent<MeshRenderer>().material.name.Contains("Saturn") || currentBall.GetComponent<MeshRenderer>().material.name.Contains("Bright"));
+        currentBall.GetComponent<Outline>().enabled = !MaterialsManager.isSolarBall(currentBall.GetComponent<MeshRenderer>().material);
     }
 
     private void setCurrentFloorMaterial()
@@ -725,6 +725,13 @@ public class ShopMenu : MonoBehaviour
 
         if (!isMysteryBoxSeeking)
             menusController.hideCurrentMenu(false);
+    }
+
+    /// <summary>Android back during a box reveal: the same as a tap - skip the spin, then collect.</summary>
+    public void revealBack()
+    {
+        if (mysteryBoxReveal != null)
+            mysteryBoxReveal.OnTap();
     }
 
     public void MysteryBoxAdLoaded()

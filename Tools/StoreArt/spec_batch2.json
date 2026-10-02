@@ -1,0 +1,23 @@
+{
+  "items": [
+    { "src": "Builds/StoreArt/raw4/N_saturn_3.png", "out": "Builds/StoreArt/review/planet.jpg",
+      "zoom": 2.0, "cx": 0.5, "cy": 0.5,
+      "title": "ROLL AS A PLANET", "titleSize": 104, "sub": "Saturn, the Sun, the Moon and more" },
+
+    { "src": "Builds/StoreArt/raw4/N_saturn_10.5.png", "out": "Builds/StoreArt/review/diamonds.jpg",
+      "zoom": 1.5, "cx": 0.5, "cy": 0.47,
+      "title": "GRAB DIAMONDS", "titleSize": 104, "sub": "Unlock new balls and tracks" },
+
+    { "src": "Builds/StoreArt/raw4/N_saturn_7.5.png", "out": "Builds/StoreArt/review/double.jpg",
+      "zoom": 1.5, "cx": 0.5, "cy": 0.47,
+      "title": "DOUBLE POINTS", "titleSize": 104, "sub": "Every step counts twice" },
+
+    { "src": "Builds/StoreArt/raw4/O_climb_13.5.png", "out": "Builds/StoreArt/review/climb_a.jpg",
+      "zoom": 1.3, "cx": 0.55, "cy": 0.5,
+      "title": "CLIMB HIGHER", "titleSize": 104, "sub": "The higher you go, the wilder the way" },
+
+    { "src": "Builds/StoreArt/raw4/O_climb_33.png", "out": "Builds/StoreArt/review/climb_b.jpg",
+      "zoom": 1.3, "cx": 0.55, "cy": 0.5,
+      "title": "CLIMB HIGHER", "titleSize": 104, "sub": "The higher you go, the wilder the way" }
+  ]
+}

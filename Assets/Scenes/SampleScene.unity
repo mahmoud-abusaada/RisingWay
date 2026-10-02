@@ -7084,12 +7084,12 @@ PrefabInstance:
     - target: {fileID: 6943451366122511453, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
       propertyPath: m_text
-      value: 'Music:'
+      value: 'Ambient:'
       objectReference: {fileID: 0}
     - target: {fileID: 6943451366289153404, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
       propertyPath: m_Name
-      value: Music
+      value: Ambient
       objectReference: {fileID: 0}
     - target: {fileID: 6943451366289153405, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
@@ -9552,6 +9552,16 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1382637745}
     m_Modifications:
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHolePreviewBall
+      value: 
+      objectReference: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHoleLensMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
     - target: {fileID: 97693648330992439, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
         type: 3}
       propertyPath: m_SortingLayer
@@ -18308,12 +18318,6 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     vectorLabel1_3: W
---- !u!198 &215054886 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 3080191432444524500, guid: 98bbe3bfe60079748a113058f2a190ef,
-    type: 3}
-  m_PrefabInstance: {fileID: 3080191432391118322}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &215054888 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3080191432444524506, guid: 98bbe3bfe60079748a113058f2a190ef,
@@ -31324,6 +31328,22 @@ MonoBehaviour:
     isBright: 1
     price: -1
     material: {fileID: 2100000, guid: 22fecab8e41c1f24ab612c83eba094fd, type: 2}
+  - id: 73
+    isBright: 0
+    price: -1
+    material: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+  - id: 74
+    isBright: 0
+    price: -1
+    material: {fileID: 2100000, guid: 8a474db352cde3f4b8098f15746c6e9a, type: 2}
+  - id: 75
+    isBright: 0
+    price: -1
+    material: {fileID: 2100000, guid: 409470b7b055cbc4ca93b4f9bd607576, type: 2}
+  - id: 76
+    isBright: 0
+    price: -1
+    material: {fileID: 2100000, guid: 20bc2c115d949204995530c29c3dd325, type: 2}
   floorMaterials:
   - id: 1
     isBright: 0
@@ -52133,7 +52153,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &675725833
 Transform:
   m_ObjectHideFlags: 0
@@ -59663,12 +59683,6 @@ AudioSource:
     type: 3}
   m_PrefabInstance: {fileID: 7572157957131465890}
   m_PrefabAsset: {fileID: 0}
---- !u!198 &813538212 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 682294259467069037, guid: c582ffa7cbdfbfe429b4367a9c61e8ef,
-    type: 3}
-  m_PrefabInstance: {fileID: 682294259733183945}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &813538214 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 682294259467069039, guid: c582ffa7cbdfbfe429b4367a9c61e8ef,
@@ -60931,15 +60945,19 @@ MonoBehaviour:
   parent: {fileID: 836975088}
   solarParent: {fileID: 0}
   sunTrail: {fileID: 608400353}
-  mercury: {fileID: 2100000, guid: e6e4f304ef3d0484eb16f9bd171831e0, type: 2}
-  venus: {fileID: 2100000, guid: 4b53448afd4113f4bbe0028cedb1c279, type: 2}
-  earth: {fileID: 2100000, guid: 5bb186a3294d0e840a5311a24323e2c1, type: 2}
-  mars: {fileID: 2100000, guid: 8b99fbbe531886a42ad8b8e4d390e3a9, type: 2}
-  jupiter: {fileID: 2100000, guid: 4a83b85b14fa5d143826157a17efb0a8, type: 2}
-  saturn: {fileID: 2100000, guid: f6844eae5c9980f4e907fba6db7bb286, type: 2}
-  uranus: {fileID: 2100000, guid: 61a5cac37d2109140888b356ac277c1a, type: 2}
-  neptune: {fileID: 2100000, guid: 783547a67e1cddc4e892c3f53950e3d9, type: 2}
-  pluto: {fileID: 2100000, guid: 542170db72dd13c42997ef72bf3456a3, type: 2}
+  mercury: {fileID: 2100000, guid: c4293d9106953b7468eb18c58a8d4e63, type: 2}
+  venus: {fileID: 2100000, guid: c403548e7ac8ce04194000d72f7b2d8b, type: 2}
+  earth: {fileID: 2100000, guid: 9817de6a58c5990499b80adb7ad99d94, type: 2}
+  mars: {fileID: 2100000, guid: 55638c569271bde439d89f46a08300cb, type: 2}
+  jupiter: {fileID: 2100000, guid: abfa5b14d808dcd409fbeb9178024932, type: 2}
+  saturn: {fileID: 2100000, guid: 6303c79b1071ffc4599fc3081378ebec, type: 2}
+  uranus: {fileID: 2100000, guid: 28808dad8e1f9ee409ad7e5930c9d78e, type: 2}
+  neptune: {fileID: 2100000, guid: c37b177b2b3eacf42a3da315f8f04604, type: 2}
+  pluto: {fileID: 2100000, guid: fc771fdea50814a4ab99a154b0cca727, type: 2}
+  coronaMaterial: {fileID: 2100000, guid: 2baee842d7eb7584ab0b74ce33bc777d, type: 2}
+  trailMaterial: {fileID: 2100000, guid: 214c3f172db79954abf67dfb31186c8e, type: 2}
+  ringMaterial: {fileID: 2100000, guid: 55a5ceaa660a0b64bb32f3eef0e11d2b, type: 2}
+  planetSize: 1.7
 --- !u!1 &839299481
 GameObject:
   m_ObjectHideFlags: 0
@@ -60972,18 +60990,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cameraController: {fileID: 554031629}
-  starsContainer: {fileID: 905541979}
-  starsHeightContainer: {fileID: 619612331}
   cloudsContainer: {fileID: 1465279508}
-  galaxyContainer: {fileID: 308322767}
-  galaxySky: {fileID: 1364340793}
-  cubeSkybox: {fileID: 675725833}
   sunDirectionalLight: {fileID: 918331483}
   solarSystem: {fileID: 1312090325}
   gameOverMenu: {fileID: 540514343}
-  whiteStars: {fileID: 813538212}
-  redStars: {fileID: 1673117189}
-  blueStars: {fileID: 215054886}
+  spaceSky: {fileID: 1559908918}
   daySkyColor: {r: 0, g: 0.42745098, b: 0.65882355, a: 1}
   midSkyColor: {r: 0, g: 0.09411765, b: 0.21568628, a: 0}
   nightSkyColor: {r: 0, g: 0, b: 0, a: 0}
@@ -60998,32 +61009,6 @@ MonoBehaviour:
   - {fileID: 21300000, guid: e6ec633fb63f8434489480555775603b, type: 3}
   - {fileID: 21300000, guid: 9ffc734e5b9d03d4492dfee5586357e4, type: 3}
   - {fileID: 21300000, guid: fe23e66c401aed2498a932814055d5bf, type: 3}
-  galaxy:
-  - {fileID: 21300000, guid: 1a13a6043e8a99645b3141e38fdb2d0c, type: 3}
-  - {fileID: 21300000, guid: db29618023b9b8b439e83d94505ac347, type: 3}
-  - {fileID: 21300000, guid: cd5a8d486f1b1184db2cf778012576cc, type: 3}
-  - {fileID: 21300000, guid: 70830fd12e6b26a419444287f693e5ee, type: 3}
-  - {fileID: 21300000, guid: a3c3757e21f288049bcb5f6deba20172, type: 3}
-  - {fileID: 21300000, guid: ad365e4e3c33f964ba573caefc4a8c9e, type: 3}
-  - {fileID: 21300000, guid: f7b1a3773b4964f4898c2b3d4f957ea2, type: 3}
-  - {fileID: 21300000, guid: 953b3f0d9b00cde46b371a382ac31d4f, type: 3}
-  - {fileID: 21300000, guid: 3327b63c9b951394cb49c37f1e6fa7db, type: 3}
-  - {fileID: 21300000, guid: 9cab67a487d6a5446b4ce607e1d26ebc, type: 3}
-  - {fileID: 21300000, guid: 7f6471ab41b16a241a200a4c9857e944, type: 3}
-  - {fileID: 21300000, guid: 4cf3b2ee029392f4b8f496c29e7da78a, type: 3}
-  - {fileID: 21300000, guid: 05db7e5694cb56f46b88489a9fe6cd8a, type: 3}
-  - {fileID: 21300000, guid: da06a85e1c212f54c9cae61522b59c43, type: 3}
-  - {fileID: 21300000, guid: eacd8cd2d44b1144b8b52804c539a558, type: 3}
-  - {fileID: 21300000, guid: 03407d4e58cf13342b00eff032416dc5, type: 3}
-  - {fileID: 21300000, guid: 7226a1ed24d44a343b1e5c3a89b8fb3d, type: 3}
-  - {fileID: 21300000, guid: b286ac5040d021d46bea4410df8bac9e, type: 3}
-  - {fileID: 21300000, guid: b6e8773d2e48d494593709fd4d0263be, type: 3}
-  - {fileID: 21300000, guid: d1ae247376471fd42812efe63bd11ff0, type: 3}
-  - {fileID: 21300000, guid: 8efd72df373f50b4398e226a039d04af, type: 3}
-  - {fileID: 21300000, guid: e2623ddca3e6b794793d0678c865effe, type: 3}
-  - {fileID: 21300000, guid: 9f4972df8d50e8448b43fa2554e66aef, type: 3}
-  - {fileID: 21300000, guid: 5dab1d17b9de1aa4db4b01aea27b4bf3, type: 3}
-  - {fileID: 21300000, guid: 39d6a9b49fa99aa4f886bb3422862f94, type: 3}
   cloudsMinRadius: 600
   cloudsMaxRadius: 1800
   cloudsStartHeight: 400
@@ -61050,6 +61035,7 @@ Transform:
   - {fileID: 308322767}
   - {fileID: 1297010344}
   - {fileID: 1312090325}
+  - {fileID: 1559908919}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!82 &839299484
@@ -61165,15 +61151,19 @@ MonoBehaviour:
   parent: {fileID: 836975088}
   solarParent: {fileID: 1312090325}
   sunTrail: {fileID: 608400353}
-  mercury: {fileID: 2100000, guid: e6e4f304ef3d0484eb16f9bd171831e0, type: 2}
-  venus: {fileID: 2100000, guid: 4b53448afd4113f4bbe0028cedb1c279, type: 2}
-  earth: {fileID: 2100000, guid: 5bb186a3294d0e840a5311a24323e2c1, type: 2}
-  mars: {fileID: 2100000, guid: 8b99fbbe531886a42ad8b8e4d390e3a9, type: 2}
-  jupiter: {fileID: 2100000, guid: 4a83b85b14fa5d143826157a17efb0a8, type: 2}
-  saturn: {fileID: 2100000, guid: f6844eae5c9980f4e907fba6db7bb286, type: 2}
-  uranus: {fileID: 2100000, guid: 61a5cac37d2109140888b356ac277c1a, type: 2}
-  neptune: {fileID: 2100000, guid: 783547a67e1cddc4e892c3f53950e3d9, type: 2}
-  pluto: {fileID: 2100000, guid: 542170db72dd13c42997ef72bf3456a3, type: 2}
+  mercury: {fileID: 2100000, guid: c4293d9106953b7468eb18c58a8d4e63, type: 2}
+  venus: {fileID: 2100000, guid: c403548e7ac8ce04194000d72f7b2d8b, type: 2}
+  earth: {fileID: 2100000, guid: 9817de6a58c5990499b80adb7ad99d94, type: 2}
+  mars: {fileID: 2100000, guid: 55638c569271bde439d89f46a08300cb, type: 2}
+  jupiter: {fileID: 2100000, guid: abfa5b14d808dcd409fbeb9178024932, type: 2}
+  saturn: {fileID: 2100000, guid: 6303c79b1071ffc4599fc3081378ebec, type: 2}
+  uranus: {fileID: 2100000, guid: 28808dad8e1f9ee409ad7e5930c9d78e, type: 2}
+  neptune: {fileID: 2100000, guid: c37b177b2b3eacf42a3da315f8f04604, type: 2}
+  pluto: {fileID: 2100000, guid: fc771fdea50814a4ab99a154b0cca727, type: 2}
+  coronaMaterial: {fileID: 2100000, guid: 2baee842d7eb7584ab0b74ce33bc777d, type: 2}
+  trailMaterial: {fileID: 2100000, guid: 214c3f172db79954abf67dfb31186c8e, type: 2}
+  ringMaterial: {fileID: 2100000, guid: 55a5ceaa660a0b64bb32f3eef0e11d2b, type: 2}
+  planetSize: 1.7
 --- !u!1 &840789980
 GameObject:
   m_ObjectHideFlags: 0
@@ -69005,6 +68995,16 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1544140842}
     m_Modifications:
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHolePreviewBall
+      value: 
+      objectReference: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHoleLensMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
     - target: {fileID: 97693648330992439, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
         type: 3}
       propertyPath: m_SortingLayer
@@ -72392,14 +72392,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cbdf2a9d518b7a4f917ba9dfc47a5af, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  musicSlider: {fileID: 98899199}
+  musicSlider: {fileID: 1331577208}
   musicSource: {fileID: 63866970}
   musicFilter: {fileID: 63866972}
-  musicTracks:
-  - {fileID: 8300000, guid: 9fa99fa998744fc4daea91466329ef86, type: 3}
-  - {fileID: 8300000, guid: 40f346f6f725dd6448c3256ff1fad94c, type: 3}
-  ambientSlider: {fileID: 1331577208}
+  musicTracks: []
+  ambientSlider: {fileID: 98899199}
   ambientSource: {fileID: 1343022771}
+  ambientLoop: {fileID: 8300000, guid: f1c2bac97b2b41d84c0ab2b0fa466ec1, type: 3}
+  runBed: {fileID: 8300000, guid: 6978819ec9214ae6b854d8af3a7887f1, type: 3}
+  runPulse: {fileID: 8300000, guid: 8f2f9d0a43ae406781eb41b16cbfff15, type: 3}
+  runShimmer: {fileID: 8300000, guid: 6ecd64a3a70c464c99c19845cc032890, type: 3}
+  turnAudio: {fileID: 8300000, guid: 3d89e51cf1a4441cbd85f52b737334ec, type: 3}
   sfxSlider: {fileID: 1179140577}
   sfxSource: {fileID: 97767082}
   sfxDiamondSource: {fileID: 315274606}
@@ -81329,6 +81332,16 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 499381830}
     m_Modifications:
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHolePreviewBall
+      value: 
+      objectReference: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+    - target: {fileID: 97693648330992437, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
+        type: 3}
+      propertyPath: blackHoleLensMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
     - target: {fileID: 97693648330992439, guid: 40560c72a3d1fdf4e8424cdf1fa2e693,
         type: 3}
       propertyPath: m_SortingLayer
@@ -83650,6 +83663,16 @@ PrefabInstance:
       propertyPath: stencilShader
       value: 
       objectReference: {fileID: 4800000, guid: 8190e3389236ecc429c5533c679c189e, type: 3}
+    - target: {fileID: 536024579775554680, guid: f5157d8eca1813d4f84975151bfc6347,
+        type: 3}
+      propertyPath: blackHolePreviewBall
+      value: 
+      objectReference: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+    - target: {fileID: 536024579775554680, guid: f5157d8eca1813d4f84975151bfc6347,
+        type: 3}
+      propertyPath: blackHoleLensMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
     - target: {fileID: 536024579775554682, guid: f5157d8eca1813d4f84975151bfc6347,
         type: 3}
       propertyPath: m_SortingLayer
@@ -98037,12 +98060,12 @@ PrefabInstance:
     - target: {fileID: 6943451366122511453, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
       propertyPath: m_text
-      value: 'Ambient:'
+      value: 'Music:'
       objectReference: {fileID: 0}
     - target: {fileID: 6943451366289153404, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
       propertyPath: m_Name
-      value: Ambient
+      value: Music
       objectReference: {fileID: 0}
     - target: {fileID: 6943451366289153404, guid: 3e2c4b10f8289a54382a822b6c90690b,
         type: 3}
@@ -106610,7 +106633,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1512801686}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -106627,7 +106650,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fd30692206ab139468acaf745774d16a, type: 2}
+  - {fileID: 2100000, guid: f726ebbed6118b3479453bc542ee9c84, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -114261,6 +114284,61 @@ MonoBehaviour:
     y: 0
     width: 1
     height: 1
+--- !u!1 &1559908917
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1559908919}
+  - component: {fileID: 1559908918}
+  m_Layer: 0
+  m_Name: SpaceSky
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1559908918
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559908917}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89c71d0a3f824c344855f8b474e2868b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpaceSky
+  galaxyMaterial: {fileID: 2100000, guid: cdade2b74adda1d43b47f564572689ca, type: 2}
+  starsMaterial: {fileID: 2100000, guid: e5b8e53de4fe44145a594eabe47dda40, type: 2}
+  starCount: 14000
+  seed: 7
+  galaxyTilt: {x: 58, y: 0, z: 24}
+  turnSpeed: 0.25
+  nearStarsMaterial: {fileID: 2100000, guid: 99d108020cb61974fa86b8bb1e6c69a8, type: 2}
+  nearStarCount: 22
+  nearStarMinDistance: 350
+  nearStarMaxDistance: 1800
+  visibility: 1
+--- !u!4 &1559908919
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1559908917}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 839299483}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1560658528
 GameObject:
   m_ObjectHideFlags: 0
@@ -118394,7 +118472,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: e6ed847a60bc26443af1bec9582a446a,
         type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -120622,12 +120700,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1672121875}
   m_CullTransparentMesh: 1
---- !u!198 &1673117189 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 4874463139122251, guid: 622f4d3c78b39c047a32b4e80714c23d,
-    type: 3}
-  m_PrefabInstance: {fileID: 4874461469307470}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1673117191 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4874463139122249, guid: 622f4d3c78b39c047a32b4e80714c23d,
@@ -153112,6 +153184,16 @@ PrefabInstance:
       propertyPath: doublePointsAmbient
       value: 
       objectReference: {fileID: 392689200}
+    - target: {fileID: 536024579775554680, guid: f5157d8eca1813d4f84975151bfc6347,
+        type: 3}
+      propertyPath: blackHolePreviewBall
+      value: 
+      objectReference: {fileID: 2100000, guid: 0f6b76a379c9d7c4b8a2b86f8c1cd01b, type: 2}
+    - target: {fileID: 536024579775554680, guid: f5157d8eca1813d4f84975151bfc6347,
+        type: 3}
+      propertyPath: blackHoleLensMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f70e9b400446d0d44bd6968867821a1d, type: 2}
     - target: {fileID: 536024579775554683, guid: f5157d8eca1813d4f84975151bfc6347,
         type: 3}
       propertyPath: inGameUI

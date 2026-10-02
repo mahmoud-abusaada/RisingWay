@@ -19,6 +19,8 @@ public class PlayerLinkedObjectsController : MonoBehaviour
     [SerializeField] private ParticleSystem spawningEffect;
     [SerializeField] private ParticleSystem doublePointsAmbient;
     [SerializeField] private ParticleSystem boltAmbient;
+    // The Black Hole ball's disk and lensing (BlackHoleBall, BlackHole.shader).
+    [SerializeField] private Material blackHoleLensMaterial;
     private float originalNormalTrailTime;
     private float originalBoltTrailTime;
     private float originalDoublePointsTrailTime;
@@ -35,6 +37,9 @@ public class PlayerLinkedObjectsController : MonoBehaviour
 
     public void reset()
     {
+        // A chance's respawn may have been under way when the run was left.
+        spawningEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        spawningEffect.gameObject.SetActive(false);
         normalTrail.enabled = false;
         boltTrail.enabled = false;
         doublePointsTrail.enabled = false;
@@ -60,12 +65,23 @@ public class PlayerLinkedObjectsController : MonoBehaviour
             earthNight.GetComponent<Renderer>().material.renderQueue = renderQueue + 2;
         }
 
+        BlackHoleBall.Apply(gameObject, blackHoleLensMaterial);
+
+        // The ball in play is seen through the track, with everything on it (its moons: Moons).
+        if (CompareTag("Player"))
+            foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+                if (r is MeshRenderer && r.name != BlackHoleBall.LENS_NAME)
+                    SeeThrough.Add(r);
+
         if (GetComponent<Renderer>().material.name.Contains("Earth"))
         {
             earthStuff.gameObject.SetActive(true);
             defaultStuff.gameObject.SetActive(false);
+            // No city lights: the layer glows over every continent, on the sunlit side too, and
+            // on a phone with HDR and bloom that glow turned the land white.
+            earthNight.gameObject.SetActive(false);
         }
-        else if (GetComponent<Renderer>().material.name.Contains("Bright") || GetComponent<Renderer>().material.name.Contains("Saturn"))
+        else if (MaterialsManager.isSolarBall(GetComponent<Renderer>().material)) // no outline ring (see isSolarBall)
         {
             earthStuff.gameObject.SetActive(false);
             defaultStuff.gameObject.SetActive(false);

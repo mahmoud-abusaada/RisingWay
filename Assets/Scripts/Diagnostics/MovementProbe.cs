@@ -8,6 +8,13 @@
 //   -probeFps N     simulated render frame rate (default 60)
 //   -probeTurns N   stop after this many turns (default 40)
 //   -probeVerbose   log every hop, every unusual turn, and traces around them
+//   -probeOneTap    taps instead of auto-pilot; with -probeTapSpread D (taps up to D either side of
+//                   a turn part's centre), -probeManual (left/right controls), -probeBoltButton P
+//   -probeEarly F   (with -probeOneTap) this share of the taps comes before the turn part, within
+//                   the early-tap grace (PlayerMovement.EARLY_TAP_SECONDS); the ball must still turn
+//   -probeTutorial  (with -probeOneTap) the run starts with the tutorial on, played by a beginner:
+//                   taps too early, misses a turn altogether, then gets it (see TutorialStep)
+//   -probeSpeed S / -probeSeed N / -probePatterns R-R,L-L / -probeHug D: see each option below
 //
 // What it reports, per run:
 //   turn error    how far from the centre of the turn part the ball's new line is. This is what
@@ -91,8 +98,24 @@ public class MovementProbe : MonoBehaviour
     // centre, a little early or late like a player, and tap a second time straight after, which
     // must not turn the ball again.
     private bool oneTap;
-    private Transform tappedFor;
+    // The last few turn parts tapped for, each with where it stood: parts are pooled, and the same
+    // object comes back later as a new turn somewhere else.
+    private readonly Queue<KeyValuePair<Transform, Vector3>> tappedFor = new Queue<KeyValuePair<Transform, Vector3>>();
+
+    private bool TappedFor(Transform part)
+    {
+        foreach (KeyValuePair<Transform, Vector3> t in tappedFor)
+            if (t.Key == part && (t.Value - part.position).sqrMagnitude < 0.01f)
+                return true;
+        return false;
+    }
     private float tapAt;
+    // -probeEarly F: nextEarly is how far into the grace the next tap comes (0 at the part's near
+    // edge, 1 at the grace's limit), or -1 for a tap on the part.
+    private float earlyShare, nextEarly = -1f;
+    private int earlyTaps;
+    private static readonly FieldInfo EarlySecondsField =
+        typeof(PlayerMovement).GetField("EARLY_TAP_SECONDS", BindingFlags.NonPublic | BindingFlags.Static);
     private int secondTapIn;
 
     // -probeBoltRejoin: every few turns, turn the ball off the path as a player reaching for a bolt
@@ -105,6 +128,48 @@ public class MovementProbe : MonoBehaviour
     // How far off the centre line the ball is when the bolt takes over. A bolt sits at its part's
     // centre and the ball collects it within about 0.7 of that, so it can be no further out.
     private const float SIDEWAYS_DISTANCE = 0.7f;
+
+    // -probeHug D: on the curve out before each turn, move the ball D off the centre line towards
+    // the side it is about to turn to - the side a U-turn (R-R, L-L) comes back on. With
+    // -probePatterns R-R,L-L every approach is a U-turn.
+    private float hug;
+    private Transform huggedOn;
+    private Directions hugDirection;
+    private int hugs;
+
+    private void HugStep()
+    {
+        Vector3 p = body.position;
+        RaycastHit under;
+        int notPlayer = Physics.DefaultRaycastLayers & ~(1 << player.gameObject.layer);
+        if (!Physics.Raycast(p, Vector3.down, out under, 2f, notPlayer, QueryTriggerInteraction.Ignore) ||
+            under.collider.attachedRigidbody == null)
+            return;
+        Transform part = under.collider.attachedRigidbody.transform;
+        if (!part.CompareTag("CurveSt") || part == huggedOn)
+            return;
+        Vector3 f = Forward(player.direction);
+        Transform turn = null;
+        foreach (string tag in new[] { "LandLeft", "LandRight" })
+            foreach (GameObject go in GameObject.FindGameObjectsWithTag(tag))
+            {
+                Vector3 d = go.transform.position - part.position;
+                float ahead = d.x * f.x + d.z * f.z;
+                if (ahead > 1f && ahead < 4f && Mathf.Abs(d.y) < 2f &&
+                    Mathf.Abs(CrossAxis(player.direction, d)) < 0.5f)
+                    turn = go.transform;
+            }
+        if (turn == null)
+            return;
+        huggedOn = part;
+        hugDirection = player.direction;
+        Vector3 right = new Vector3(f.z, 0, -f.x);
+        float side = turn.CompareTag("LandRight") ? 1f : -1f;
+        SetCross(CrossAxis(player.direction, part.position) + side * CrossAxis(player.direction, right) * hug);
+        hugs++;
+        if (verbose)
+            Debug.Log(TAG + "HUG " + hugs + ": " + hug + " towards the " + (side > 0 ? "right" : "left") + " before " + turn.tag);
+    }
 
     private void BoltRejoinStep()
     {
@@ -200,6 +265,18 @@ public class MovementProbe : MonoBehaviour
         return true;
     }
 
+    private bool fallAtUTurn;
+    private int uTurnFalls;
+    private static readonly FieldInfo NotGroundField =
+        typeof(PathMaker).GetField("notGroundUntil", BindingFlags.NonPublic | BindingFlags.Instance);
+
+    // Between the two turns of a U-turn: a part is being kept from the ball until the second.
+    private bool UTurnPending()
+    {
+        object d = NotGroundField != null ? NotGroundField.GetValue(FindAnyObjectByType<PathMaker>()) : null;
+        return d is System.Collections.ICollection c && c.Count > 0 && turnErrors.Count > 0;
+    }
+
     private bool ReviveStep()
     {
         if (reviveUnderway)
@@ -228,6 +305,16 @@ public class MovementProbe : MonoBehaviour
             lastStepPos = body.position;
             return true;
         }
+        // -probeFallAtUTurn: fall again and again, each time between the two turns of a U-turn - the
+        // fall a player makes by missing the second turn. The part after that U-turn is then left
+        // hidden from the ball (PathMaker.notGroundUntil) when the path is taken down.
+        if (revived && fallAtUTurn)
+        {
+            revived = false;
+            reviveFallSeen = false;
+            Debug.Log(TAG + "REVIVE " + (++uTurnFalls) + " done; next fall at the next U-turn");
+            return false;
+        }
         if (revived)
         {
             if (turnErrors.Count - turnsAtRevive >= TURNS_AFTER_REVIVE)
@@ -235,7 +322,10 @@ public class MovementProbe : MonoBehaviour
             return false;
         }
         Vector3 q = body.position;
-        if (turnErrors.Count >= 3 && haveSegment && new Vector2(q.x - turnPoint.x, q.z - turnPoint.z).magnitude >= 4.5f)
+        bool knock = fallAtUTurn
+            ? turnErrors.Count >= 3 && UTurnPending() && new Vector2(q.x - turnPoint.x, q.z - turnPoint.z).magnitude >= 0.6f
+            : turnErrors.Count >= 3 && haveSegment && new Vector2(q.x - turnPoint.x, q.z - turnPoint.z).magnitude >= 4.5f;
+        if (knock)
         {
             Utility.chanceIsOn = true;
             Vector3 f = Forward(player.direction);
@@ -248,26 +338,257 @@ public class MovementProbe : MonoBehaviour
         return false;
     }
 
+    // -probeTapSpread D (with -probeOneTap): each tap lands anywhere from D before the turn part's
+    // centre to D after it (default 0.2). A turn part reaches 1.25 each way, so 1.1 is a player
+    // tapping as early and as late as the part allows - and the ball then rides the next parts
+    // 1.1 off their centre line, along the edge. Any fall in such a run is the game's fault: every
+    // tap was on the turn part. Also counted: a tap that turned the ball the wrong way for the
+    // part, and a tap on a turn part that did not turn it at all.
+    private float tapSpread = 0.2f;
+    private int wrongTurns, lostTaps, taps, repeatTaps;
+    private float boltButton;
+    private int boltPresses;
+    private static readonly FieldInfo TurnedOnField =
+        typeof(PlayerMovement).GetField("partTurnedOn", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo GroundPartField =
+        typeof(PlayerMovement).GetField("groundPart", BindingFlags.NonPublic | BindingFlags.Instance);
+    // -probeSpeed S: hold this speed (the game's own time scale stays, unlike -probeFast).
+    private float holdSpeed = -1f;
+
+    // -probeManual (with -probeOneTap): the left/right and swipe controls instead of one-tap - each
+    // turn is the player choosing the side, here always the side the part turns to.
+    private bool manual;
+    private bool lastTapLeft;
+
+    // -probeTutorial: the tutorial, as a beginner plays it. Turns 1 and 2: waits for the ball to
+    // stop, then taps. Turn 3: taps well before the turn (must be ignored), then at the centre.
+    // Turn 4: does not tap (the ball must stop past the flag and wait), then taps. Turn 5: taps as
+    // the ball comes onto the part. From turn 6: taps late, past the centre. The ball must never
+    // fall, and the tutorial must end by itself.
+    private bool tutorialTest, tutorialEnded;
+    private int tutorialTurns, tutorialTaps;
+    private Directions tutorialDirection;
+    private float tutorialStoppedAt = -1f;
+    private bool tutorialTappedEarly;
+    private Transform tutorialTappedOn;
+
+    private void TutorialStep()
+    {
+        // -probeIdle: nobody taps. The ball must stop at the first flag and stay there.
+        if (Arg("-probeIdle") != null)
+        {
+            if (Time.time - startedAt > 25f)
+            {
+                Debug.Log(TAG + "TUTORIAL idle for 25s: stopped=" + Utility.stoppedForTutorials + " direction " + player.direction + " at " + body.position.ToString("F2"));
+                Finish("idle tutorial");
+            }
+            return;
+        }
+        if (tutorialTurns == 0 && tutorialTaps == 0 && tutorialStoppedAt < 0f && tutorialTappedOn == null && tutorialDirection != player.direction)
+            tutorialDirection = player.direction;
+        if (player.direction != tutorialDirection)
+        {
+            tutorialTurns++;
+            tutorialDirection = player.direction;
+            tutorialTappedEarly = false;
+            Debug.Log(TAG + "TUTORIAL turn " + tutorialTurns + " done at " + body.position.ToString("F2"));
+        }
+        Vector3 p = body.position;
+        Transform part = NearestTurnPart(p, 25f);
+        if (part == null)
+            return;
+        bool left = part.CompareTag("LandLeft");
+        if (Utility.stoppedForTutorials)
+        {
+            if (tutorialStoppedAt < 0f)
+            {
+                tutorialStoppedAt = Time.time;
+                Vector3 c = part.position - p;
+                Debug.Log(TAG + "TUTORIAL ball stopped " + new Vector2(c.x, c.z).magnitude.ToString("F2") + " from the centre of " + part.tag);
+            }
+            if (Time.time - tutorialStoppedAt > 0.6f)
+            {
+                if (manual && tutorialTaps % 2 == 0)
+                    player.manualTurn(!left); // the wrong side first: must be refused
+                Tap(left);
+                tutorialTaps++;
+                tutorialStoppedAt = -1f;
+            }
+            return;
+        }
+        tutorialStoppedAt = -1f;
+        Vector3 f = Forward(player.direction);
+        float ahead = (part.position.x - p.x) * f.x + (part.position.z - p.z) * f.z;
+        if (ahead < -1.3f || Mathf.Abs(CrossAxis(player.direction, part.position - p)) > 1.24f || part == tutorialTappedOn)
+            return;
+        float tapWhen;
+        switch (tutorialTurns)
+        {
+            case 0: case 1: return;
+            case 2:
+                if (!tutorialTappedEarly && ahead < 3.4f && ahead > 1.5f)
+                {
+                    tutorialTappedEarly = true;
+                    Tap(left); // far too early
+                    Debug.Log(TAG + "TUTORIAL tapped " + ahead.ToString("F2") + " before the centre of the next turn");
+                    if (player.direction != tutorialDirection)
+                        Debug.LogWarning(TAG + "TUTORIAL: a tap " + ahead.ToString("F2") + " before the turn turned the ball");
+                }
+                tapWhen = 0f;
+                break;
+            case 3: return;
+            case 4: tapWhen = 1.2f; break;
+            default: tapWhen = -0.5f; break;
+        }
+        if (ahead > tapWhen)
+            return;
+        tutorialTappedOn = part;
+        Tap(left);
+        tutorialTaps++;
+        Debug.Log(TAG + "TUTORIAL tapped " + ahead.ToString("F2") + " before the centre, at speed " + player.speed.ToString("F1"));
+    }
+
+    // Every bolt: how long it lasted, and whether one never ended (the S20, October 2026: a bolt
+    // that stayed on for good). A bolt still on after BOLT_STUCK_SECONDS ends the run, with the
+    // path maker's bolt counters.
+    private const float BOLT_STUCK_SECONDS = 60f;
+    private bool boltWasOn;
+    private float boltSince;
+    private int bolts;
+    private float longestBolt;
+
+    private static object PathField(PathMaker pm, string name)
+    {
+        FieldInfo f = typeof(PathMaker).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+        return f != null ? f.GetValue(pm) : "?";
+    }
+
+    private void BoltWatch()
+    {
+        if (Utility.boltIsOn && !boltWasOn)
+        {
+            boltSince = Time.time;
+            bolts++;
+            PathMaker pm = FindAnyObjectByType<PathMaker>();
+            Debug.Log(TAG + "BOLT " + bolts + " on at " + body.position.ToString("F1") + " stopping=" + PathField(pm, "isStoppingBolt") +
+                      " withBolt=" + PathField(pm, "spawnedPartsWithBolt") + " straights=" + PathField(pm, "spawnedStraightForBoltCount"));
+        }
+        else if (!Utility.boltIsOn && boltWasOn)
+        {
+            float lasted = Time.time - boltSince;
+            longestBolt = Mathf.Max(longestBolt, lasted);
+            Debug.Log(TAG + "BOLT " + bolts + " off after " + lasted.ToString("F1") + "s");
+        }
+        boltWasOn = Utility.boltIsOn;
+        if (Utility.boltIsOn && Time.time - boltSince > BOLT_STUCK_SECONDS)
+        {
+            PathMaker pm = FindAnyObjectByType<PathMaker>();
+            Debug.LogWarning(TAG + "BOLT STUCK: on for " + (Time.time - boltSince).ToString("F0") + "s. stopping=" + PathField(pm, "isStoppingBolt") +
+                             " withBolt=" + PathField(pm, "spawnedPartsWithBolt") + " straights=" + PathField(pm, "spawnedStraightForBoltCount") +
+                             " distance=" + Utility.getBoltDistance());
+            foreach (Transform part in FindObjectsByType<Transform>(FindObjectsSortMode.None))
+                if (part.name == Utility.Constants.BOLT_STRAIGHT_PART_NAME)
+                    Debug.LogWarning(TAG + "  stop part at " + part.position.ToString("F1") + " active=" + part.gameObject.activeInHierarchy +
+                                     " ball " + body.position.ToString("F1"));
+            Finish("bolt stuck");
+        }
+    }
+
+    private void Tap(bool left)
+    {
+        if (manual)
+            player.manualTurn(left);
+        else
+            player.autoTurn();
+    }
+
     private void OneTapStep()
     {
         if (secondTapIn > 0 && --secondTapIn == 0)
-            player.autoTurn();
+            Tap(lastTapLeft);
 
         Vector3 p = body.position;
-        Transform part = NearestTurnPart(p);
-        if (part == null || part == tappedFor)
+        Transform part = NearestTurnPart(p, earlyShare > 0 ? 16f : 4f);
+        if (part == null || TappedFor(part))
             return;
         Vector3 f = Forward(player.direction);
-        float ahead = (part.position.x - p.x) * f.x + (part.position.z - p.z) * f.z;
-        if (ahead > tapAt)
+        // Only a turn part on the ball's own line: off centre the nearest one can be in the lane
+        // alongside, and a tap for that one comes far too early.
+        if (huggedOn != null && hugDirection == player.direction
+                ? Mathf.Abs(CrossAxis(player.direction, part.position - huggedOn.position)) > 0.5f
+                : Mathf.Abs(CrossAxis(player.direction, part.position - p)) > 1.24f)
             return;
-        tappedFor = part;
-        player.autoTurn();
+        float ahead = (part.position.x - p.x) * f.x + (part.position.z - p.z) * f.z;
+        float tapWhen = tapAt;
+        if (nextEarly >= 0f)
+        {
+            float seconds = EarlySecondsField != null ? (float)EarlySecondsField.GetValue(null) : 0f;
+            float reach = Mathf.Min(player.speed * Time.timeScale * seconds, 2.4f); // EARLY_TAP_MAX_DISTANCE
+            // Inside the grace by a step at its far end: the tap lands up to a step after this.
+            tapWhen = 1.25f + 0.02f + nextEarly * Mathf.Max(0f, reach - 0.04f);
+        }
+        if (ahead > tapWhen)
+            return;
+        if (ahead < -1.3f)
+            return; // behind the ball: a part it has left, already falling away
+        tappedFor.Enqueue(new KeyValuePair<Transform, Vector3>(part, part.position));
+        if (tappedFor.Count > 4)
+            tappedFor.Dequeue();
+        // -probeBoltButton P: now and then press the bolt button here instead of tapping - on the
+        // turn part, before the turn. The game must then make this turn itself.
+        if (boltButton > 0f && UnityEngine.Random.value < boltButton)
+        {
+            pickUps.activateBolt();
+            boltPresses++;
+            return;
+        }
+        Directions before = player.direction;
+        object under = GroundPartField != null ? GroundPartField.GetValue(player) : null;
+        bool turnedHere = under != null && TurnedOnField != null && ReferenceEquals(TurnedOnField.GetValue(player), under);
+        lastTapLeft = part.CompareTag("LandLeft");
+        Tap(lastTapLeft);
+        taps++;
+        // Before the part, or on its first 0.3 (EARLY_TAP_INSET): the game keeps the tap and turns
+        // the ball 0.3 into the part.
+        bool early = EarlySecondsField != null && (float)EarlySecondsField.GetValue(null) > 0f && ahead > 0.95f;
+        nextEarly = UnityEngine.Random.value < earlyShare ? UnityEngine.Random.value : -1f;
+        if (early)
+        {
+            // Kept, not turned yet: the turn comes once the ball is on the part. A fall is the failure.
+            earlyTaps++;
+            secondTapIn = 0;
+            tapAt = UnityEngine.Random.Range(-Mathf.Max(0f, tapSpread - player.speed * Time.fixedDeltaTime), tapSpread);
+            return;
+        }
+        if (turnedHere)
+        {
+            repeatTaps++; // the ball had turned on this part already: rightly ignored
+            return;
+        }
+        Directions expected = (Directions)(((int)before + (part.CompareTag("LandRight") ? 90 : 270)) % 360);
+        if (player.direction == before)
+        {
+            lostTaps++;
+            Debug.LogWarning(TAG + "TAP LOST: no turn on " + part.tag + " at " + part.position.ToString("F2") + ", ball " + p.ToString("F2") +
+                             " heading " + before + ", " + ahead.ToString("F2") + " before its centre");
+        }
+        else if (player.direction != expected)
+        {
+            wrongTurns++;
+            Debug.LogWarning(TAG + "WRONG TURN: " + before + " -> " + player.direction + " on " + part.tag + " at " + part.position.ToString("F2") +
+                             ", ball " + p.ToString("F2") + " (expected " + expected + ")");
+        }
         // One step later: still on the turn part, so it tests "the same part never turns the
         // ball twice". A tap after the ball has left the part is a late tap, which rightly
         // turns it off the track.
-        secondTapIn = 1;
-        tapAt = UnityEngine.Random.Range(-0.2f, 0.2f); // the next tap a little early or late
+        // Not off the centre line (-probeHug, a wide -probeTapSpread): from the lane's edge the
+        // ball is on the next turn part a step after turning, and the second tap would be a real
+        // turn there.
+        secondTapIn = hug > 0 || tapSpread > 0.3f ? 0 : 1;
+        // The next tap early or late. It lands up to one physics step after the point chosen, so
+        // the late end is pulled in by a step: a tap past the part's end is the player's miss.
+        float step = player.speed * Time.fixedDeltaTime;
+        tapAt = UnityEngine.Random.Range(-Mathf.Max(0f, tapSpread - step), tapSpread);
     }
 
     private static string Arg(string name)
@@ -303,10 +624,25 @@ public class MovementProbe : MonoBehaviour
         Time.captureDeltaTime = 1f / fps;
 
         edgeTest = Arg("-probeEdge") != null;
-        reviveTest = Arg("-probeRevive") != null;
+        reviveTest = Arg("-probeRevive") != null || Arg("-probeFallAtUTurn") != null;
+        fallAtUTurn = Arg("-probeFallAtUTurn") != null;
         oneTap = Arg("-probeOneTap") != null;
         boltRejoinTest = Arg("-probeBoltRejoin") != null;
         PathMaker.PreviewAllPatterns = Arg("-probeAllPatterns") != null;
+        string forced = Arg("-probePatterns");
+        PathMaker.ForcedPatterns = string.IsNullOrEmpty(forced) ? null : forced.Split(',');
+        float.TryParse(Arg("-probeHug") ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture, out hug);
+        float.TryParse(Arg("-probeTapSpread") ?? "0.2", NumberStyles.Float, CultureInfo.InvariantCulture, out tapSpread);
+        float.TryParse(Arg("-probeEarly") ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture, out earlyShare);
+        float.TryParse(Arg("-probeSpeed") ?? "-1", NumberStyles.Float, CultureInfo.InvariantCulture, out holdSpeed);
+        manual = Arg("-probeManual") != null;
+        float.TryParse(Arg("-probeBoltButton") ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture, out boltButton);
+        int seed;
+        if (int.TryParse(Arg("-probeSeed") ?? "", out seed))
+            UnityEngine.Random.InitState(seed); // the same path and taps again
+        tutorialTest = Arg("-probeTutorial") != null;
+        if (tutorialTest)
+            PlayerStats.Instance.setTutorialsState(true);
         originalAutoPilot = PlayerStats.Instance.isAutoPilotOn();
         PlayerStats.Instance.setAutoPilotState(!oneTap);
 
@@ -350,7 +686,11 @@ public class MovementProbe : MonoBehaviour
         lastStepPos = body.position;
         startedAt = Time.time;
         running = true;
-        Debug.Log(TAG + "run started at " + body.position + " radius=" + ballRadius + " interpolation=" + body.interpolation +
+        FieldInfo moveRadius = typeof(PlayerMovement).GetField("ballRadius", BindingFlags.NonPublic | BindingFlags.Instance);
+        Debug.Log(TAG + "run started at " + body.position + " radius=" + ballRadius + " (PlayerMovement's: " +
+                  (moveRadius != null ? moveRadius.GetValue(player) : "?") + ", rendered " +
+                  player.GetComponent<Renderer>().bounds.extents.x.ToString("F3") + ", lossyScale " + player.transform.lossyScale.ToString("F3") +
+                  ", maxAngularVelocity " + body.maxAngularVelocity + ") interpolation=" + body.interpolation +
                   " collision=" + body.collisionDetectionMode);
     }
 
@@ -359,6 +699,9 @@ public class MovementProbe : MonoBehaviour
         if (!running)
             return;
 
+        if (holdSpeed > 0)
+            player.speed = holdSpeed;
+
         if (fast)
         {
             // Held every step: picking up a real bolt and losing it would otherwise reset both.
@@ -366,14 +709,29 @@ public class MovementProbe : MonoBehaviour
             TimeScaleField.SetValue(pickUps, 3.5f);
         }
 
+        BoltWatch();
         if (reviveTest && ReviveStep())
             return;
         if (edgeTest && EdgeStep())
             return;
-        if (oneTap && Utility.camFollowPlayer)
+        // Not during a bolt: the game turns the ball itself then and takes no taps (InputManager).
+        if (tutorialTest && !tutorialEnded && !PlayerStats.Instance.isTutorialsOn())
+        {
+            tutorialEnded = true;
+            Debug.Log(TAG + "TUTORIAL ended by itself after " + tutorialTurns + " turns and " + tutorialTaps + " taps, " +
+                      (Time.time - startedAt).ToString("F1") + "s in");
+        }
+        if (tutorialTest && !tutorialEnded)
+        {
+            if (Utility.camFollowPlayer)
+                TutorialStep();
+        }
+        else if (oneTap && Utility.camFollowPlayer && !Utility.boltIsOn)
             OneTapStep();
         if (boltRejoinTest && Utility.camFollowPlayer)
             BoltRejoinStep();
+        if (hug > 0 && Utility.camFollowPlayer)
+            HugStep();
 
         if (!Utility.camFollowPlayer)
         {
@@ -574,7 +932,7 @@ public class MovementProbe : MonoBehaviour
         return (dir == Directions.North || dir == Directions.South) ? v.x : v.z;
     }
 
-    private static Transform NearestTurnPart(Vector3 p)
+    private static Transform NearestTurnPart(Vector3 p, float within = 4f)
     {
         Transform best = null;
         float bestD = float.MaxValue;
@@ -595,7 +953,7 @@ public class MovementProbe : MonoBehaviour
                 }
             }
         }
-        return bestD < 4f ? best : null;
+        return bestD < within ? best : null;
     }
 
     // What the track looks like where the ball fell: a part still dropping into place and a part
@@ -708,7 +1066,16 @@ public class MovementProbe : MonoBehaviour
                   "   game time: " + (Time.time - startedAt).ToString("F1", ci) + "s");
         if (boltRejoinTest)
             Debug.Log(TAG + "bolt rejoin test: " + rejoins + " times off the path and back, fell: " + fell);
+        if (oneTap)
+            Debug.Log(TAG + (manual ? "left/right test: " : "one-tap test: ") + taps + " taps within " + tapSpread + " of the turn parts' centres, wrong turns: " + wrongTurns +
+                      ", lost taps: " + lostTaps + ", repeat taps ignored: " + repeatTaps + ", early taps: " + earlyTaps +
+                      ", bolt button presses on a turn part: " + boltPresses + ", fell: " + fell);
+        if (tutorialTest)
+            Debug.Log(TAG + "tutorial test: " + (tutorialEnded ? "ended by itself" : "DID NOT END") + " after " + tutorialTurns + " turns, fell: " + fell);
+        if (hug > 0)
+            Debug.Log(TAG + "hug test: " + hugs + " approaches " + hug + " off centre towards the turn, fell: " + fell);
         Debug.Log(TAG + "parts that hurried to land before the ball: " + MoveDown.HurriedLandings);
+        Debug.Log(TAG + "bolts: " + bolts + ", longest " + longestBolt.ToString("F1") + "s" + (Utility.boltIsOn ? ", ONE STILL ON" : ""));
         if (reviveTest)
             Debug.Log(TAG + "revive test: " + (!revived ? "the revive never completed"
                 : (fell ? "FELL AGAIN " : "no fall in ") + (turnErrors.Count - turnsAtRevive) + " turns after the revive"));

@@ -37,6 +37,10 @@ public class PlayerFall : MonoBehaviour
         // camFollowPlayer and spawningAfterChance already cover the time the ball is being carried back.
         if (Utility.gameStarted && !IsGrounded() && !Utility.spawningAfterChance && Utility.camFollowPlayer)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (PlayerMovement.DebugMovement)
+                logRays();
+#endif
             playerFell();
         }
 
@@ -58,6 +62,15 @@ public class PlayerFall : MonoBehaviour
                 menusController.showAndAddMenuToStack(Menus.ReviveMenu);
             }
         }
+    }
+
+    /// <summary>
+    /// The run is over (Home, Restart): forget a fall still being watched, or the "fallen far
+    /// enough" check above would respawn the ball or offer a revive from the main menu.
+    /// </summary>
+    public void resetFall()
+    {
+        checkForHeightDelta = false;
     }
 
     public void startRespawn()
@@ -156,6 +169,23 @@ public class PlayerFall : MonoBehaviour
                 return true;
         return false;
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void logRays()
+    {
+        foreach (Vector3 offset in new[] { new Vector3(radiusToCheck, 0, 0), new Vector3(-radiusToCheck, 0, 0),
+                                           new Vector3(0, 0, radiusToCheck), new Vector3(0, 0, -radiusToCheck) })
+        {
+            int n = Physics.RaycastNonAlloc(transform.position + offset, -Vector3.up, groundHits, distToGround,
+                                            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            string line = "[Fall] ray at " + (transform.position + offset).ToString("F2") + ": " + n + " hits";
+            for (int i = 0; i < n; i++)
+                line += "  " + groundHits[i].collider.name + "/" + (groundHits[i].collider.transform.parent != null ? groundHits[i].collider.transform.parent.name : "-") +
+                        " d=" + groundHits[i].distance.ToString("F2") + " away=" + isFallingAway(groundHits[i].collider.transform);
+            Debug.Log(line);
+        }
+    }
+#endif
 
     // Destroyer.destroy() renames the part it knocks down; the collider may sit a level or two below it.
     private static bool isFallingAway(Transform t)

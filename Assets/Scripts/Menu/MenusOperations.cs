@@ -38,6 +38,8 @@ public class MenusOperations : MonoBehaviour
         Utility.resetFlags();
         cameraController.resetCameraPosition();
         playerMovement.resetPlayerValues();
+        FindObjectOfType<PlayerFall>().resetFall();
+        pickUpsManager.clearForNewRun();
         pathMaker.resetPathValues();
         scoreManager.resetScore();
         playerTrigger.stopCoroutines();

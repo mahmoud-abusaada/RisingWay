@@ -38,6 +38,14 @@ public class SettingsMenu : MonoBehaviour
     private Color selectedColor = new Color32(60, 136, 171, 65);
     private Color unselectedColor = new Color32(91, 91, 91, 65);
     private IEnumerator animationsCoroutine;
+    private SettingsMenuSkin skin;
+
+    void Awake()
+    {
+        // The Nebula look (UiKit), as on the Upgrade menu.
+        skin = gameObject.AddComponent<SettingsMenuSkin>();
+        skin.Build(transform.Find("Title").GetComponent<TMPro.TMP_Text>());
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -184,6 +192,7 @@ public class SettingsMenu : MonoBehaviour
         singleTapImage.color = selectedColor;
         tapLeftRightImage.color = unselectedColor;
         swipeLeftRightImage.color = unselectedColor;
+        skin.ShowMode(singleTapImage);
     }
 
     public void SelectTapLeftRightMode()
@@ -192,6 +201,7 @@ public class SettingsMenu : MonoBehaviour
         singleTapImage.color = unselectedColor;
         tapLeftRightImage.color = selectedColor;
         swipeLeftRightImage.color = unselectedColor;
+        skin.ShowMode(tapLeftRightImage);
     }
 
     public void SelectSwipeLeftRightMode()
@@ -200,6 +210,7 @@ public class SettingsMenu : MonoBehaviour
         singleTapImage.color = unselectedColor;
         tapLeftRightImage.color = unselectedColor;
         swipeLeftRightImage.color = selectedColor;
+        skin.ShowMode(swipeLeftRightImage);
     }
 
     private void autoPilotToggleValueChanged() => PlayerStats.Instance.setAutoPilotState(autoPilotToggle.isOn);
