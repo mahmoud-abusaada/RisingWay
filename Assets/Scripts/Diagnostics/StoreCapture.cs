@@ -179,6 +179,19 @@ public class StoreCapture : MonoBehaviour
                     }
                     if (Arg("-shotDump") != null)
                         Dump(menus.transform.root, full);
+                    // -shotBox: open a mystery box in the shop and shoot the reveal as it goes.
+                    if (full == "ShopMenu" && Arg("-shotBox") != null)
+                    {
+                        FindAnyObjectByType<ShopMenu>().MysteryBoxClick();
+                        // (the reveal runs on real time)
+                        float started = Time.realtimeSinceStartup;
+                        foreach (float t in new[] { 0.5f, 3f, 5f, 6.5f, 8f, 10f })
+                        {
+                            while (Time.realtimeSinceStartup - started < t)
+                                yield return null;
+                            yield return Capture(shotName + "_box_" + t.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                    }
                     // -shotUpgradeTap Bolt: buy that upgrade and catch its animation on the way.
                     if (full == "UpgradeMenu" && Arg("-shotUpgradeTap") != null)
                     {

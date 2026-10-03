@@ -136,13 +136,7 @@ public static class NebulaSkin
         image.raycastTarget = true;
         corners(image);
         UiKit.Gradient(image, UiKit.Cyan, UiKit.Violet, true);
-        if (image.transform.Find("Glow") == null)
-        {
-            Image glow = UiKit.Image(image.transform, "Glow", "round_glow", UiKit.WithAlpha(UiKit.Violet, 0.45f));
-            glow.pixelsPerUnitMultiplier = image.pixelsPerUnitMultiplier;
-            UiKit.Stretch(glow.rectTransform, 30);
-            glow.transform.SetAsFirstSibling();
-        }
+        glow(image, UiKit.WithAlpha(UiKit.Violet, 0.45f));
     }
 
     /// <summary>A gold button that stands out (the mystery box): gold gradient, glowing.</summary>
@@ -152,13 +146,7 @@ public static class NebulaSkin
         image.raycastTarget = true;
         corners(image);
         UiKit.Gradient(image, UiKit.Gold, UiKit.Amber, true);
-        if (image.transform.Find("Glow") == null)
-        {
-            Image glow = UiKit.Image(image.transform, "Glow", "round_glow", UiKit.WithAlpha(UiKit.Gold, 0.5f));
-            glow.pixelsPerUnitMultiplier = image.pixelsPerUnitMultiplier;
-            UiKit.Stretch(glow.rectTransform, 30);
-            glow.transform.SetAsFirstSibling();
-        }
+        glow(image, UiKit.WithAlpha(UiKit.Gold, 0.5f));
     }
 
     /// <summary>Any other button: glass.</summary>
@@ -198,17 +186,27 @@ public static class NebulaSkin
             UiKit.Gradient(image, UiKit.Cyan, UiKit.Violet, true);
         else
             UiKit.Gradient(image, UiKit.Off, UiKit.GlassDeep, true);
-        Transform glow = image.transform.Find("Glow");
-        if (glow == null && chosen)
-        {
-            Image g = UiKit.Image(image.transform, "Glow", "round_glow", UiKit.WithAlpha(UiKit.Violet, 0.45f));
-            g.pixelsPerUnitMultiplier = image.pixelsPerUnitMultiplier;
-            UiKit.Stretch(g.rectTransform, 30);
-            g.transform.SetAsFirstSibling();
-            glow = g.transform;
-        }
-        if (glow != null)
-            glow.gameObject.SetActive(chosen);
+        Transform halo = image.transform.Find("Glow");
+        if (halo == null && chosen)
+            halo = glow(image, UiKit.WithAlpha(UiKit.Violet, 0.45f)).transform;
+        if (halo != null)
+            halo.gameObject.SetActive(chosen);
+    }
+
+    // The glow round a button, outside its edge only. The glow sprite's shape sits 32 px in from
+    // its border; scaled with the button's corners (pixelsPerUnitMultiplier) and set out by as
+    // much, its shape is the button's own. (Set out by a fixed amount instead, the shape fell
+    // inside the button on the small ones and drew a second rounded box in it.)
+    private static Image glow(Image button, Color colour)
+    {
+        Transform old = button.transform.Find("Glow");
+        Image g = old != null ? old.GetComponent<Image>() : UiKit.Image(button.transform, "Glow", "round_glow", colour);
+        float m = button.pixelsPerUnitMultiplier;
+        g.pixelsPerUnitMultiplier = m;
+        g.color = colour;
+        UiKit.Stretch(g.rectTransform, 32f / m);
+        g.transform.SetAsFirstSibling();
+        return g;
     }
 
     // Corners in proportion to the button: about a quarter of its height.

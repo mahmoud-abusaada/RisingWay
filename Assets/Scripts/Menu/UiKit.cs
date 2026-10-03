@@ -63,6 +63,10 @@ public static class UiKit
         go.layer = parent.gameObject.layer;
         RectTransform r = (RectTransform)go.transform;
         r.SetParent(parent, false);
+        // Decoration is never laid out with the content (in a box that arranges its children, an
+        // edge would take a place of its own: an empty chip over the mystery box's prize count).
+        if (parent.GetComponent<LayoutGroup>() != null)
+            go.AddComponent<LayoutElement>().ignoreLayout = true;
         return r;
     }
 
