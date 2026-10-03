@@ -52,7 +52,24 @@ public class MenusController : MonoBehaviour
         if (PlayerStats.Instance.getBoxesCount() == 0)
             adsManager.LoadMysteryBoxAd();
         adsManager.LoadReviveAd();
+        applyTheme();
         showAndAddMenuToStack(Menus.MainMenu);
+    }
+
+    // The Nebula look on every menu without a skin of its own (NebulaSkin), before any is shown.
+    private void applyTheme()
+    {
+        foreach (Canvas menu in new[] { shopMenu, purchaseMenu, diamondsShopMenu })
+            if (menu != null)
+                NebulaSkin.Apply(menu.transform, true);
+        foreach (Canvas menu in new[] { pauseMenu, gameOverMenu, reviveMenu })
+            if (menu != null)
+                NebulaSkin.Apply(menu.transform, true);
+        if (confirmationDialog != null)
+            NebulaSkin.Apply(confirmationDialog.transform, false);
+        foreach (Canvas c in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (c.name == "UpdateDialog")
+                NebulaSkin.Apply(c.transform, false);
     }
 
     // A second back press on the main menu within this many seconds exits the game.

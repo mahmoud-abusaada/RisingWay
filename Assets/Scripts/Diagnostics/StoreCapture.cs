@@ -145,6 +145,10 @@ public class StoreCapture : MonoBehaviour
                 stats.subtractDiamonds(stats.getDiamondsCount());
                 stats.addDiamonds(int.Parse(Arg("-shotDiamonds")));
             }
+            // -shotDumpNames A,B: those canvases' objects in the log too (the dialogs).
+            if (Arg("-shotDumpNames") != null)
+                foreach (string n in Arg("-shotDumpNames").Split(','))
+                    Dump(null, n);
             GameObject update = GameObject.Find("UpdateDialog");
             if (update != null)
                 update.SetActive(false); // the Editor's version check thinks it is out of date
@@ -157,7 +161,7 @@ public class StoreCapture : MonoBehaviour
                     string full = name.EndsWith("Menu") ? name : name + "Menu";
                     menus.hideStackMenus();
                     menus.showAndAddMenuToStack((Menus)Enum.Parse(typeof(Menus), full));
-                    for (int i = 0; i < 45; i++)
+                    for (int i = 0; i < 70; i++)
                         yield return null;
                     yield return Capture(shotName + "_" + full);
                     // -shotScrollEnd: the same menu scrolled to its end too (the shop's last balls).

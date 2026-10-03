@@ -50,8 +50,6 @@ public class ShopMenu : MonoBehaviour
     private int floorRenderModifier = 0;
     private int diamondsCount;
     private bool mysteryBoxAdLoaded = false;
-    private Color selectedColor = new Color32(121, 202, 255, 215);
-    private Color unselectedColor = new Color32(110, 110, 110, 65);
 
     void Awake()
     {
@@ -96,8 +94,8 @@ public class ShopMenu : MonoBehaviour
         if (currentList == Lists.Balls)
             return;
 
-        floorsBtnImage.color = unselectedColor;
-        ballsBtnImage.color = selectedColor;
+        NebulaSkin.Tab(floorsBtnImage, false);
+        NebulaSkin.Tab(ballsBtnImage, true);
 
         contentRect.localPosition = Vector3.zero;
 
@@ -124,8 +122,8 @@ public class ShopMenu : MonoBehaviour
         if (currentList == Lists.Floors)
             return;
 
-        floorsBtnImage.color = selectedColor;
-        ballsBtnImage.color = unselectedColor;
+        NebulaSkin.Tab(floorsBtnImage, true);
+        NebulaSkin.Tab(ballsBtnImage, false);
 
         contentRect.localPosition = Vector3.zero;
 
