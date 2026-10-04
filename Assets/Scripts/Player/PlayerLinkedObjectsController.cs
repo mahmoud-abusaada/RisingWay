@@ -51,6 +51,10 @@ public class PlayerLinkedObjectsController : MonoBehaviour
     {
         if (isStenciled)
         {
+            // Each layer keeps its own keywords under the stencil shader. A build only keeps the
+            // StencilledLit variants some material in it uses: the Earth's water (transparent, no
+            // emission) had none, fell back to the opaque one on the phone, and its texture is
+            // white over the land. Resources/ShaderVariants/StencilledLit Transparent keeps it.
             outline.GetComponent<Renderer>().material.shader = stencilShader;
             earthAtmosphere.GetComponent<Renderer>().material.shader = stencilShader;
             earthClouds.GetComponent<Renderer>().material.shader = stencilShader;
