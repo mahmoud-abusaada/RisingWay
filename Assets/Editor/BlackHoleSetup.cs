@@ -31,13 +31,13 @@ public static class BlackHoleSetup
     private static readonly Variant[] Variants =
     {
         new Variant { id = 73, name = "Black Hole", hot = new Color(4.2f, 3.4f, 2.4f), cool = new Color(1.7f, 0.55f, 0.12f), ring = new Color(3f, 2.4f, 1.7f),
-                      tilt = 15, roll = -12, spin = 1f, doppler = 0.75f, brightness = 0.55f, outer = 3.0f, turbulence = 0.6f },
+                      tilt = 15, roll = -12, spin = 1f, doppler = 0.75f, brightness = 0.55f, outer = 3.7f, turbulence = 0.6f },
         new Variant { id = 74, name = "Black Hole Blue", hot = new Color(2.6f, 3.3f, 4.8f), cool = new Color(0.3f, 0.75f, 2.4f), ring = new Color(2.2f, 2.8f, 4f),
-                      tilt = 20, roll = 10, spin = 1.7f, doppler = 0.9f, brightness = 0.6f, outer = 3.1f, turbulence = 0.7f },
+                      tilt = 20, roll = 10, spin = 1.7f, doppler = 0.9f, brightness = 0.6f, outer = 3.8f, turbulence = 0.7f },
         new Variant { id = 75, name = "Black Hole Crimson", hot = new Color(4.4f, 2.1f, 2.2f), cool = new Color(1.9f, 0.12f, 0.3f), ring = new Color(3.4f, 1.6f, 1.6f),
-                      tilt = 8, roll = -20, spin = 0.8f, doppler = 0.6f, brightness = 0.6f, outer = 3.2f, turbulence = 0.5f },
+                      tilt = 8, roll = -20, spin = 0.8f, doppler = 0.6f, brightness = 0.6f, outer = 3.9f, turbulence = 0.5f },
         new Variant { id = 76, name = "Black Hole Violet", hot = new Color(3.6f, 2.8f, 4.8f), cool = new Color(1.1f, 0.3f, 2.2f), ring = new Color(3f, 2.4f, 4f),
-                      tilt = 34, roll = 4, spin = 1.2f, doppler = 0.7f, brightness = 0.55f, outer = 2.9f, turbulence = 0.65f },
+                      tilt = 34, roll = 4, spin = 1.2f, doppler = 0.7f, brightness = 0.55f, outer = 3.6f, turbulence = 0.65f },
     };
 
     public static void Run()
@@ -70,12 +70,12 @@ public static class BlackHoleSetup
                 AssetDatabase.CreateAsset(lens, lensPath);
             }
             lens.shader = lensShader;
-            lens.SetFloat("_Reach", 3.4f);
-            lens.SetFloat("_Bend", 0.55f);
+            lens.SetFloat("_Reach", 4.3f); // the disk (outer edge up to 3.9) and the bending round it
+            lens.SetFloat("_Bend", 0.8f);
             lens.SetFloat("_InnerGlow", 0f); // the user did not want it glowing
-            lens.SetFloat("_MaxShift", 0.5f);
+            lens.SetFloat("_MaxShift", 0.75f); // the warp shows more; still held close, so the sky stays off the track
             lens.SetFloat("_GlowWidth", 0.42f);
-            lens.SetFloat("_Lift", 3.4f);
+            lens.SetFloat("_Lift", 4.3f);
             lens.SetFloat("_DiskInner", 0.68f); // inside the shadow: its far side, bent up over the hole, then meets the shadow - a gap read as an empty band
             lens.SetFloat("_DiskOuter", v.outer);
             lens.SetFloat("_DiskTilt", v.tilt);
@@ -84,7 +84,7 @@ public static class BlackHoleSetup
             lens.SetFloat("_Doppler", v.doppler);
             lens.SetFloat("_DiskBrightness", v.brightness);
             lens.SetFloat("_Turbulence", v.turbulence);
-            lens.SetFloat("_Ring", 0.9f);
+            lens.SetFloat("_Ring", 1.2f);
             lens.SetColor("_HotColor", v.hot);
             lens.SetColor("_CoolColor", v.cool);
             lens.SetColor("_RingColor", v.ring);

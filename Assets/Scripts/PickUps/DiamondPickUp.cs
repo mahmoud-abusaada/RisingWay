@@ -25,6 +25,9 @@ public class DiamondPickUp : MonoBehaviour
             // ParticleSystem ps = transform.Find("DiamondEffect").GetComponent<ParticleSystem>();
             // ps.transform.position = other.transform.position + new Vector3(0, .5f, 0);
             diamondEffect.Play();
+            // The diamond breaks into pieces (DiamondShatter) as it goes.
+            DiamondShatter.Burst(diamondMesh.bounds.center, diamondMesh.bounds.extents.magnitude * 0.6f,
+                                 diamondMesh.sharedMaterial, diamondMesh.gameObject.layer);
             diamondMesh.enabled = false;
             GetComponent<SphereCollider>().enabled = false;
             partsPool.setPartAfterTime(transform, diamondEffect.main.startLifetimeMultiplier);

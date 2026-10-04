@@ -57,9 +57,8 @@ public class UpgradeMenuSkin : MonoBehaviour
         line.rectTransform.anchoredPosition = title.rectTransform.anchoredPosition + new Vector2(0, -84);
         line.rectTransform.sizeDelta = new Vector2(900, 44);
 
-        Transform count = diamonds != null ? diamonds.Find("Count") : null;
-        if (count != null && count.GetComponent<Image>() != null)
-            UiKit.Style(count.GetComponent<Image>(), "pill", UiKit.GlassDeep);
+        if (diamonds != null)
+            NebulaSkin.DiamondChip(diamonds); // as the shop's
 
         // Where the power-ups are used: nothing in a run said so.
         TextMeshProUGUI tip = UiKit.Label(title, transform, "Tip",

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
@@ -20,8 +21,10 @@ public class BlackHoleBall : MonoBehaviour
     public const string MATERIAL_NAME = "Black Hole";
     public const string LENS_NAME = "Black Hole Lens";
     // Just before the lens (BlackHole.shader, Transparent-1): in the transparent queue, after the
-    // camera's copy of the opaque scene. The trails go just before it.
+    // camera's copy of the opaque scene. The trails go just after it (in a run the UI has its own
+    // camera, so the transparent queue holds nothing else there).
     private const int AFTER_SCENE_COPY = 2998;
+    private const int AFTER_LENS = 3000;
     private static readonly int LensingId = Shader.PropertyToID("_Lensing");
     private static readonly int StencilCompId = Shader.PropertyToID("_StencilComp");
     private static readonly int ZTestId = Shader.PropertyToID("_ZTest");
@@ -34,6 +37,13 @@ public class BlackHoleBall : MonoBehaviour
     private bool askedForOpaqueTexture;
     private CameraOverrideOption cameraWasSetTo;
     private readonly Dictionary<TrailRenderer, int> trailQueues = new Dictionary<TrailRenderer, int>();
+    // The ball's SortingGroup puts it (and so the disk, a child) in a sorting layer above the
+    // menus' canvases, which outranks the render queue: the disk was drawn over the main menu's
+    // buttons and the shop's title. While it is a black hole the group is in the menus' layer, so
+    // the queues decide (the disk at Transparent-1, the menus at 3000, after it).
+    private SortingGroup group;
+    private int groupLayer, groupOrder;
+    private bool groupMoved;
 
     public static bool IsBlackHole(Material m)
     {
@@ -63,13 +73,18 @@ public class BlackHoleBall : MonoBehaviour
                                                                         : UnityEngine.Rendering.CompareFunction.Always));
         // The ball in play is seen through the track (SeeThrough), and so is all of the hole: no
         // depth test, the square well in front of the ball for the whole disk. Anywhere else (the
-        // shop, the mystery box) the square sits just in front of the ball and things in front of
-        // the ball - its lock - cover it; it is drawn straight after its ball.
+        // shop, the mystery box) the square sits as far in front, clear of its own floor (which
+        // writes depth: the near half of the disk was cut off by the floor's front), and is drawn
+        // straight after its ball: its lock, drawn later, covers it, and so does the floor of the
+        // item above (ShopMenu queues items that way).
         bool player = ball.CompareTag("Player");
         effect.lensMaterial.SetFloat(ZTestId, (float)(player ? UnityEngine.Rendering.CompareFunction.Always
                                                              : UnityEngine.Rendering.CompareFunction.LessEqual));
-        effect.lensMaterial.SetFloat(LiftId, player ? effect.lensMaterial.GetFloat("_Reach") : 1.05f);
+        effect.lensMaterial.SetFloat(LiftId, effect.lensMaterial.GetFloat("_Reach"));
         effect.lensMaterial.renderQueue = player ? -1 : ballMaterial.renderQueue + 1;
+        // Away from play (the shop, the box) no light past white: on a phone it bloomed over
+        // what is beside it.
+        effect.lensMaterial.SetFloat("_MaxLight", player ? 64f : 1f);
         effect.enabled = true;
         effect.OnEnable(); // AddComponent ran OnEnable before there was a lens to switch on
     }
@@ -98,6 +113,16 @@ public class BlackHoleBall : MonoBehaviour
     {
         if (lens == null)
             return;
+        if (group == null)
+            group = GetComponent<SortingGroup>();
+        if (group != null && !groupMoved)
+        {
+            groupLayer = group.sortingLayerID;
+            groupOrder = group.sortingOrder;
+            group.sortingLayerID = 0; // Default, the menus' layer
+            group.sortingOrder = 0;
+            groupMoved = true;
+        }
         lens.gameObject.SetActive(true);
         // Only the ball in play bends the scene; a copy in the shop just shows its disk.
         if (CompareTag("Player") && Camera.main != null)
@@ -110,24 +135,34 @@ public class BlackHoleBall : MonoBehaviour
             // The black sphere after the copy is taken, not in it: the bent light is read from
             // behind the hole, and with the sphere in the copy rays near it read black.
             GetComponent<Renderer>().material.renderQueue = AFTER_SCENE_COPY;
-            // The trails start at the ball's centre, right behind the hole, so their bent image is
-            // a ring round it: they are drawn after the copy too, and before the hole, which then
-            // covers their start - the trail comes out of the bent light, not across the shadow.
+            // The trails are left out of the copy (in it, their bent image was a ring round the
+            // hole) and drawn after the hole: they lie between it and the camera, so they show
+            // over the disk right from the ball (drawn before it, the disk hid their first
+            // stretch). The black sphere, drawn before the hole, still hides what is behind it.
             foreach (TrailRenderer trail in GetComponentsInChildren<TrailRenderer>(true))
             {
                 if (!trailQueues.ContainsKey(trail)) // Apply runs this again on every ball change
                     trailQueues[trail] = trail.material.renderQueue;
-                trail.material.renderQueue = AFTER_SCENE_COPY - 1;
+                trail.material.renderQueue = AFTER_LENS;
             }
         }
+        // The bending only for the ball in play. In the shop and the box the floor under the ball
+        // is in front of the hole, and bent with the sky it showed twice (or, drawn after the
+        // scene's copy, the sky was laid over it): there the disk and its light, nothing bent.
         if (lensMaterial != null)
-            lensMaterial.SetFloat(LensingId, askedForOpaqueTexture ? 1f : 0f);
+            lensMaterial.SetFloat(LensingId, askedForOpaqueTexture && CompareTag("Player") ? 1f : 0f);
     }
 
     void OnDisable()
     {
         if (lens != null)
             lens.gameObject.SetActive(false);
+        if (group != null && groupMoved)
+        {
+            group.sortingLayerID = groupLayer;
+            group.sortingOrder = groupOrder;
+            groupMoved = false;
+        }
         if (askedForOpaqueTexture && Camera.main != null)
             Camera.main.GetUniversalAdditionalCameraData().requiresColorOption = cameraWasSetTo;
         askedForOpaqueTexture = false;

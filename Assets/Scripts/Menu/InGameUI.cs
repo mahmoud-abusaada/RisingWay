@@ -332,7 +332,9 @@ public class InGameUI : MonoBehaviour
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1, 1);
             rect.anchoredPosition3D = new Vector3(-30, -50, 0);
             rect.sizeDelta = new Vector2(220, 110);
-            tutorialSkip.AddComponent<Button>().onClick.AddListener(FinishTutorial);
+            Button skip = tutorialSkip.AddComponent<Button>();
+            skip.onClick.AddListener(FinishTutorial);
+            skip.onClick.AddListener(() => SoundManager.Instance?.PlayMenu());
         }
         tutorialSkip.SetActive(true);
     }

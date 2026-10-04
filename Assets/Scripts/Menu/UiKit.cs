@@ -144,6 +144,24 @@ public static class UiKit
         label.overflowMode = TextOverflowModes.Overflow;
     }
 
+    /// <summary>A small gold dot with a glow at the top right of <paramref name="on"/>: something
+    /// new there (an upgrade to buy, a ball not tried yet). Off until shown.</summary>
+    public static GameObject Dot(Transform on, string name, Vector2 offset, float size = 30f)
+    {
+        Transform old = on.Find(name);
+        if (old != null)
+            return old.gameObject;
+        Image dot = Image(on, name, "circle", Gold);
+        dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = new Vector2(1, 1);
+        dot.rectTransform.anchoredPosition = offset;
+        dot.rectTransform.sizeDelta = new Vector2(size, size);
+        Image halo = Image(dot.transform, "Glow", "glow", WithAlpha(Gold, 0.6f));
+        Stretch(halo.rectTransform, size * 0.6f);
+        halo.transform.SetAsFirstSibling();
+        dot.gameObject.SetActive(false);
+        return dot.gameObject;
+    }
+
     /// <summary>Dark glass with a cyan-to-violet edge, on <paramref name="panel"/>'s own Image.</summary>
     public static void GlassPanel(Image panel, float edgeAlpha = 0.8f)
     {

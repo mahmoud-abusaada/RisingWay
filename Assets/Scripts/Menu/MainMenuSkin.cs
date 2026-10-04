@@ -11,7 +11,7 @@ using UnityEngine.UI;
 public class MainMenuSkin : MonoBehaviour
 {
     private TextMeshProUGUI best, diamonds;
-    private GameObject upgradeDot;
+    private GameObject upgradeDot, shopDot;
 
     public void Build(TMP_Text title, RectTransform tapToPlay, RectTransform buttons, RectTransform social)
     {
@@ -33,37 +33,12 @@ public class MainMenuSkin : MonoBehaviour
                 tap.fontSize *= 1.15f;
         }
 
-        // The buttons on glass, their names in white.
+        // The buttons on a glass bar: each icon and its name centred in the bar (they sat high,
+        // with twice the room under them as over), the icons in the theme's gradient, thin lines
+        // between them. The bar takes the taps that miss a button - one there started the game -
+        // and each button's whole tile is its target, not just the icon.
         if (buttons != null)
-        {
-            Image bar = UiKit.Image(buttons, "Bar", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.62f));
-            bar.rectTransform.anchorMin = Vector2.zero;
-            bar.rectTransform.anchorMax = Vector2.one;
-            bar.rectTransform.offsetMin = new Vector2(30, -6);
-            bar.rectTransform.offsetMax = new Vector2(-30, 14);
-            bar.transform.SetAsFirstSibling();
-            Image edge = UiKit.Image(bar.transform, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.45f));
-            UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
-            UiKit.Stretch(edge.rectTransform);
-            foreach (TMP_Text label in buttons.GetComponentsInChildren<TMP_Text>(true))
-            {
-                label.colorGradientPreset = null;
-                label.enableVertexGradient = false;
-                label.color = UiKit.Text;
-            }
-            Transform upgrade = buttons.Find("UpgradeButton");
-            if (upgrade != null)
-            {
-                Image dot = UiKit.Image(upgrade, "CanUpgrade", "circle", UiKit.Gold);
-                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = new Vector2(1, 1);
-                dot.rectTransform.anchoredPosition = new Vector2(-4, -4);
-                dot.rectTransform.sizeDelta = new Vector2(30, 30);
-                Image halo = UiKit.Image(dot.transform, "Glow", "glow", UiKit.WithAlpha(UiKit.Gold, 0.6f));
-                UiKit.Stretch(halo.rectTransform, 18);
-                halo.transform.SetAsFirstSibling();
-                upgradeDot = dot.gameObject;
-            }
-        }
+            buildBar(buttons);
 
         // The social buttons: smaller, closer together, under the scores' line.
         if (social != null)
@@ -77,6 +52,83 @@ public class MainMenuSkin : MonoBehaviour
             }
         }
         Refresh();
+    }
+
+    private const float BAR_HEIGHT = 236f;
+    private const float ICON = 100f;
+    private const float LABEL_HEIGHT = 46f, LABEL_GAP = 8f;
+
+    private void buildBar(RectTransform buttons)
+    {
+        Image bar = UiKit.Image(buttons, "Bar", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.72f));
+        UiKit.Place(bar.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(buttons.rect.width - 60f, BAR_HEIGHT));
+        bar.pixelsPerUnitMultiplier = 0.8f;
+        bar.raycastTarget = true; // a tap on the bar between buttons does nothing
+        bar.transform.SetAsFirstSibling();
+        Image edge = UiKit.Image(bar.transform, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.55f));
+        edge.pixelsPerUnitMultiplier = bar.pixelsPerUnitMultiplier;
+        UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
+        UiKit.Stretch(edge.rectTransform);
+
+        // The icon's centre, so that icon, gap and name are centred in the bar together.
+        float block = ICON + LABEL_GAP + LABEL_HEIGHT;
+        float iconY = block / 2f - ICON / 2f;
+        float[] xs = { -400f, -133.3f, 133.3f, 400f };
+        for (int i = 1; i < xs.Length; i++)
+        {
+            Image line = UiKit.Image(bar.transform, "Divider" + i, "round_fill", UiKit.WithAlpha(Color.white, 0.12f));
+            line.type = Image.Type.Simple;
+            UiKit.Place(line.rectTransform, new Vector2(0.5f, 0.5f), new Vector2((xs[i - 1] + xs[i]) / 2f, 0f), new Vector2(2f, BAR_HEIGHT - 70f));
+        }
+
+        foreach (string name in new[] { "ShopButton", "UpgradeButton", "PurchaseButton", "SettingsButton", "NoAdsButton" })
+        {
+            RectTransform b = buttons.Find(name) as RectTransform;
+            if (b == null)
+                continue;
+            float x = b.anchoredPosition.x;
+            UiKit.Place(b, new Vector2(0.5f, 0.5f), new Vector2(x, iconY), new Vector2(ICON, ICON));
+            Image icon = b.GetComponent<Image>();
+            if (icon != null && name != "NoAdsButton")
+            {
+                icon.color = Color.white;
+                UiKit.Gradient(icon, UiKit.Hex("6FE6FF"), UiKit.Hex("9C7BFF"), true);
+            }
+            // The tile: the whole of the button's share of the bar opens it.
+            if (b.Find("Tile") == null)
+            {
+                Image tile = UiKit.Image(b, "Tile", "round_fill", Color.clear);
+                tile.raycastTarget = true;
+                UiKit.Place(tile.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -iconY), new Vector2(250f, BAR_HEIGHT - 12f));
+                tile.transform.SetAsFirstSibling();
+            }
+            TMP_Text label = b.GetComponentInChildren<TMP_Text>(true);
+            if (label != null)
+            {
+                label.colorGradientPreset = null;
+                label.enableVertexGradient = false;
+                label.color = UiKit.Text;
+                label.enableAutoSizing = false;
+                label.fontSize = 34f;
+                label.alignment = TextAlignmentOptions.Top;
+                RectTransform l = label.rectTransform;
+                l.anchorMin = l.anchorMax = new Vector2(0.5f, 0f);
+                l.pivot = new Vector2(0.5f, 1f);
+                l.anchoredPosition = new Vector2(0f, -LABEL_GAP);
+                l.sizeDelta = new Vector2(240f, LABEL_HEIGHT);
+            }
+            // Pressed: the tile dips a little.
+            if (b.GetComponent<PressDip>() == null)
+                b.gameObject.AddComponent<PressDip>();
+        }
+
+        Transform upgrade = buttons.Find("UpgradeButton");
+        if (upgrade != null)
+            upgradeDot = UiKit.Dot(upgrade, "CanUpgrade", new Vector2(4, 4));
+        // And on Shop when a ball or floor has been won or bought and never put on.
+        Transform shop = buttons.Find("ShopButton");
+        if (shop != null)
+            shopDot = UiKit.Dot(shop, "SomethingNew", new Vector2(4, 4));
     }
 
     private static TextMeshProUGUI chip(TMP_Text like, RectTransform row, string name, Vector2 at, float width, string icon)
@@ -114,13 +166,16 @@ public class MainMenuSkin : MonoBehaviour
         if (stats == null || best == null)
             return;
         int high = stats.getHighScore();
-        best.text = "<size=75%><color=" + UiKit.HexOf(UiKit.TextDim) + ">BEST</color></size>  " + high;
+        // "BEST" a little smaller than the number and raised to sit on its middle, not its foot.
+        best.text = "<size=88%><voffset=0.06em><color=" + UiKit.HexOf(UiKit.TextDim) + ">BEST</color></voffset></size>  " + high;
         best.transform.parent.gameObject.SetActive(high > 0);
         // On its own in the middle until there is a best score beside it.
         ((RectTransform)diamonds.transform.parent).anchoredPosition = new Vector2(high > 0 ? 160 : 0, 0);
         diamonds.text = Utility.getFormatedNumber(stats.getDiamondsCount());
         if (upgradeDot != null)
             upgradeDot.SetActive(canUpgrade(stats));
+        if (shopDot != null)
+            shopDot.SetActive(stats.hasNewBall() || stats.hasNewFloor());
     }
 
     private static bool canUpgrade(PlayerStats stats)
@@ -129,5 +184,21 @@ public class MainMenuSkin : MonoBehaviour
         return (stats.getDoublePointsLevel() < Utility.Constants.DOUBLE_POINTS_MAX_LEVEL && d >= Utility.Constants.DOUBLE_POINTS_UPGRADE_PRICE)
             || (stats.getBoltLevel() < Utility.Constants.BOLT_MAX_LEVEL && d >= Utility.Constants.BOLT_UPGRADE_PRICE)
             || (stats.getChanceLevel() < Utility.Constants.CHANCE_MAX_LEVEL && d >= Utility.Constants.CHANCE_UPGRADE_PRICE);
+    }
+}
+
+/// <summary>A main menu button dips a little while pressed.</summary>
+public class PressDip : MonoBehaviour, UnityEngine.EventSystems.IPointerDownHandler, UnityEngine.EventSystems.IPointerUpHandler,
+                        UnityEngine.EventSystems.IPointerExitHandler
+{
+    private float target = 1f;
+    public void OnPointerDown(UnityEngine.EventSystems.PointerEventData e) { target = 0.9f; }
+    public void OnPointerUp(UnityEngine.EventSystems.PointerEventData e) { target = 1f; }
+    public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) { target = 1f; }
+    void OnDisable() { target = 1f; transform.localScale = Vector3.one; }
+    void Update()
+    {
+        float s = Mathf.MoveTowards(transform.localScale.x, target, Time.unscaledDeltaTime * 2.5f);
+        transform.localScale = Vector3.one * s;
     }
 }

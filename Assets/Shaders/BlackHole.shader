@@ -32,6 +32,9 @@ Shader "RisingWay/Black Hole"
         _Reach ("Square size (ball radii)", Range(2, 6)) = 3.4
         _Bend ("Bending reach past the shadow (ball radii)", Range(0.1, 2)) = 0.7
         _MaxShift ("Most the bending moves the picture (ball radii)", Range(0, 2)) = 0.5
+        // The Einstein ring's radius (ball radii): where a star right behind the hole shows as a
+        // ring. Inside it, the far side's sky, turned round; outside, the sky pushed out into arcs.
+        _Einstein ("Einstein ring (ball radii)", Range(1, 3)) = 2.2
         _InnerGlow ("Glow round the shadow", Range(0, 2)) = 0
         _GlowWidth ("Glow width (ball radii)", Range(0.05, 1)) = 0.32
         // Where the square sits: this far in front of the ball's centre (ball radii). Far enough
@@ -52,6 +55,9 @@ Shader "RisingWay/Black Hole"
         [HDR] _RingColor ("Photon ring colour", Color) = (3, 2.4, 1.7, 1)
         _Ring ("Photon ring", Range(0, 2)) = 0.7
         [Toggle] _Lensing ("Lensing (needs the camera's opaque texture)", Float) = 0
+        // The brightest the light may be. In the shop it is held to 1 (BlackHoleBall): brighter,
+        // it bloomed on a phone, a glow over the item above (its mystery box).
+        _MaxLight ("Brightest light", Float) = 64
         // In the shop the balls are drawn only inside the list's mask (stencil 1, as
         // StencilledLit): BlackHoleBall sets Equal there; Always elsewhere.
         [Enum(UnityEngine.Rendering.CompareFunction)] _StencilComp ("Stencil comparison", Float) = 8
@@ -84,6 +90,7 @@ Shader "RisingWay/Black Hole"
                 float _Bend;
                 float _InnerGlow;
                 float _MaxShift;
+                float _Einstein;
                 float _GlowWidth;
                 float _Lift;
                 float _DiskInner;
@@ -99,6 +106,7 @@ Shader "RisingWay/Black Hole"
                 float4 _RingColor;
                 float _Ring;
                 float _Lensing;
+                float _MaxLight;
             CBUFFER_END
 
             // The shadow of a Schwarzschild hole is 2.6 of its Schwarzschild radius: make it the ball.
@@ -306,33 +314,32 @@ Shader "RisingWay/Black Hole"
                         alpha = 1.0;
                     else
                     {
-                        // Where the bent ray lands, far behind the hole, as seen by the camera: on
-                        // along its new direction from where it left. A ray that did not bend lands
-                        // back on its own pixel.
-                        float distance = length(camera - i.centreWS);
-                        float3 far = i.centreWS + p * rs + normalize(v) * distance * 2.0;
-                        float4 screen = ComputeScreenPos(TransformWorldToHClip(far));
-                        // This pixel, worked out the same way (not from SV_Position: rendering into
-                        // a texture can flip that one, and the two would not agree).
+                        // Gravitational lensing of what is behind, as a point mass bends it - the lens
+                        // equation: a pixel at angle theta from the hole shows the sky at
+                        // beta = theta - thetaE^2 / theta. Outside the Einstein ring (thetaE) the sky
+                        // is pushed outwards and stretched round the hole into arcs (a star right
+                        // behind becomes a ring); inside it, between the ring and the shadow, the sky
+                        // from the far side of the hole shows, turned round, squeezed into a thin
+                        // band. All on the screen, in ball radii, so it only ever reads the
+                        // picture close round the hole (the old version followed each bent ray off
+                        // across the sky - the far side mirrored, the sky over the track; held back,
+                        // it was only a magnifying glass). The disk is ray traced above, so its far
+                        // side rises over the shadow and shows again under it, as it should.
                         float4 here = ComputeScreenPos(TransformWorldToHClip(i.positionWS));
-                        float2 own = here.xy / here.w;
-                        float2 bent = screen.w > 0.0 ? screen.xy / screen.w : own;
-                        // The picture moves at most a little way - a part of the ball's own size on
-                        // the screen. Near the hole light comes round from far off: let it, and the
-                        // sky from beside the track came in over the track in a ring round the
-                        // ball. Held close, what shows there is the track itself, warped.
-                        float4 rim = ComputeScreenPos(TransformWorldToHClip(i.centreWS + UNITY_MATRIX_I_V._m00_m10_m20 * i.radius));
                         float4 mid = ComputeScreenPos(TransformWorldToHClip(i.centreWS));
-                        float ballOnScreen = length(rim.xy / rim.w - mid.xy / mid.w);
-                        float2 shift = (bent - own) * bend;
-                        float moved = length(shift);
-                        float most = _MaxShift * ballOnScreen;
-                        shift *= moved > most ? most / moved : 1.0;
-                        float2 uv = own + shift;
-                        // Bent off the screen, the light comes from what the copy does not have:
-                        // the picture eases back to unbent on the way there. (Read from the edge
-                        // of the screen instead, it was often empty space - dark patches under
-                        // the hole in play.)
+                        float4 rim = ComputeScreenPos(TransformWorldToHClip(i.centreWS + UNITY_MATRIX_I_V._m00_m10_m20 * i.radius));
+                        float2 own = here.xy / here.w;
+                        float2 centre = mid.xy / mid.w;
+                        float2 px = _ScreenParams.xy;                          // uv to pixels: the same scale both ways
+                        float radiusPx = max(length((rim.xy / rim.w - centre) * px), 1e-3);
+                        float2 offset = (own - centre) * px / radiusPx;        // in ball radii
+                        float theta = max(length(offset), 1e-3);
+                        // The deflection fades to nothing at the square's edge, so it meets the scene
+                        // round it without a seam.
+                        float taper = 1.0 - smoothstep(_Reach * 0.55, _Reach * 0.97, theta);
+                        float beta = theta - _Einstein * _Einstein / theta * taper;
+                        float2 uv = centre + offset / theta * beta * radiusPx / px;
+                        // Read from off the screen, the copy has nothing: ease back to unbent there.
                         float2 outside = max(-uv, uv - 1.0);
                         uv = lerp(uv, own, saturate(max(outside.x, outside.y) * 3.0));
                         behind = SampleSceneColor(saturate(uv));
@@ -349,6 +356,7 @@ Shader "RisingWay/Black Hole"
                 {
                     alpha = captured ? 1.0 : 1.0 - through * (1.0 - covered);
                 }
+                light = min(light, _MaxLight);
                 return half4((light + behind) * fade, alpha * fade);
             }
             ENDHLSL

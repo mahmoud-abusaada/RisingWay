@@ -160,10 +160,34 @@ public class MaterialsManager : MonoBehaviour
         return combinedFloorsList;
     }
 
+    // The Black Hole balls wait for their own release: until the remote config says so
+    // (UpdateVersions.blackHoles), they are not in the shop's list or the mystery box. One the
+    // player already has stays (a tester's save). Once released, always released. Read once a
+    // launch, so the shop's list never changes under it.
+    private const string KEY_BLACK_HOLES = "key_black_holes_released";
+    private List<ColorMaterial> shownBalls;
+
+    public static void releaseBlackHoles()
+    {
+        PlayerPrefs.SetInt(KEY_BLACK_HOLES, 1);
+        PlayerPrefs.Save();
+    }
+
+    private List<ColorMaterial> getShownBalls()
+    {
+        if (shownBalls == null)
+        {
+            bool released = PlayerPrefs.GetInt(KEY_BLACK_HOLES, 0) == 1;
+            shownBalls = ballMaterials.FindAll(m =>
+                released || !BlackHoleBall.IsBlackHole(m.material) || isBallOwned(m.id));
+        }
+        return shownBalls;
+    }
+
     public List<ColorMaterial> getLockedBallsList()
     {
         List<ColorMaterial> lockedBalls = new List<ColorMaterial>();
-        foreach (ColorMaterial material in ballMaterials)
+        foreach (ColorMaterial material in getShownBalls())
         {
             if (!isBallOwned(material.id))
             {
@@ -186,9 +210,10 @@ public class MaterialsManager : MonoBehaviour
         return lockedFloors;
     }
 
+    /// <summary>The balls on offer (the shop's list): every ball but those not yet released.</summary>
     public List<ColorMaterial> getBallsMaterials()
     {
-        return ballMaterials;
+        return getShownBalls();
     }
 
     // The track shares one floor material between all its parts and edits it in place (shader

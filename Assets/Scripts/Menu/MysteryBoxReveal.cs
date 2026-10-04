@@ -67,7 +67,7 @@ public class MysteryBoxReveal : MonoBehaviour
 
     // ---- State ---------------------------------------------------------------------------------
     public bool IsPlaying { get; private set; }
-    private bool skipRequested, collectRequested, canCollect;
+    private bool skipRequested, collectRequested, canCollect, prizeShown;
     private float raySpeed, punch, baseScale = 1f, glowPulse;
     private Color tint;
     private bool backdropWasRaycastTarget;
@@ -101,12 +101,13 @@ public class MysteryBoxReveal : MonoBehaviour
         StartCoroutine(Run(prize, onCollected, onDone));
     }
 
-    /// <summary>A tap anywhere on the overlay: skips the spin, or collects once the prize is shown.</summary>
+    /// <summary>A press anywhere on the overlay or the box: skips the spin; once the prize is
+    /// shown, collects it. Presses while it collects and leaves are ignored.</summary>
     public void OnTap()
     {
         if (!IsPlaying) return;
         if (canCollect) collectRequested = true;
-        else skipRequested = true;
+        else if (!prizeShown) skipRequested = true;
     }
 
     // ============================================================================================
@@ -116,7 +117,7 @@ public class MysteryBoxReveal : MonoBehaviour
     private IEnumerator Run(MysteryBoxPrize prize, Action onCollected, Action onDone)
     {
         IsPlaying = true;
-        skipRequested = collectRequested = canCollect = false;
+        skipRequested = collectRequested = canCollect = prizeShown = false;
         if (legacyClips != null) legacyClips.Stop();
 
         Color rarityColor = RarityColor(prize.rarity);
@@ -170,9 +171,12 @@ public class MysteryBoxReveal : MonoBehaviour
         }
         bubble.anchoredPosition = new Vector2(0, BUBBLE_SHOWN_Y);
 
-        // 4. The reveal.
+        // 4. The reveal. From here a press collects (it used to wait 0.35 s, and a quick second
+        //    press in that time did nothing).
         tint = rarityColor;
         ShowPrize(prize);
+        prizeShown = true;
+        canCollect = true;
         int tier = (int)prize.rarity; // 0..3
         SoundManager.Instance?.PlayRevealWin(prize.rarity);
         StartCoroutine(Tween(0.28f, t => SetAlpha(flash, 0.75f * (1f - t) * (1f - t))));
@@ -213,7 +217,6 @@ public class MysteryBoxReveal : MonoBehaviour
         {
             held += Time.unscaledDeltaTime;
             raySpeed = Mathf.MoveTowards(raySpeed, 22f, 160f * Time.unscaledDeltaTime);
-            if (held > 0.35f) canCollect = true;
             if (held > COLLECT_HINT_AFTER)
                 SetAlpha(hint, Mathf.Clamp01((held - COLLECT_HINT_AFTER) * 3f) * (0.55f + 0.35f * Mathf.Sin(held * 4f)));
             yield return null;

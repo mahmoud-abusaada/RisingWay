@@ -172,6 +172,17 @@ public static class SaveSystem
         if (!d.ownedBallIds.Contains(1)) { d.ownedBallIds.Add(1); changed = true; }
         if (!d.ownedFloorIds.Contains(1)) { d.ownedFloorIds.Add(1); changed = true; }
 
+        if (d.usedBallIds == null) { d.usedBallIds = new System.Collections.Generic.List<int>(); changed = true; }
+        if (d.usedFloorIds == null) { d.usedFloorIds = new System.Collections.Generic.List<int>(); changed = true; }
+        if (!d.usedTracked)
+        {
+            // A save from before the NEW marks: what is owned already counts as used.
+            foreach (int id in d.ownedBallIds) if (!d.usedBallIds.Contains(id)) d.usedBallIds.Add(id);
+            foreach (int id in d.ownedFloorIds) if (!d.usedFloorIds.Contains(id)) d.usedFloorIds.Add(id);
+            d.usedTracked = true;
+            changed = true;
+        }
+
         if (d.diamonds < 0) { d.diamonds = 0; changed = true; }
         if (d.doublePoints < 0) { d.doublePoints = 0; changed = true; }
         if (d.bolts < 0) { d.bolts = 0; changed = true; }

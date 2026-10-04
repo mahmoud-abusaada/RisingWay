@@ -68,8 +68,17 @@ public class MenusController : MonoBehaviour
         if (confirmationDialog != null)
             NebulaSkin.Apply(confirmationDialog.transform, false);
         foreach (Canvas c in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
             if (c.name == "UpdateDialog")
                 NebulaSkin.Apply(c.transform, false);
+            // 3D icons in the menus seen square on (FacesCamera), not from the side; a sound for
+            // every control without one (UiSound).
+            if (c.isRootCanvas)
+            {
+                FacesCamera.AddUnder(c.transform);
+                UiSound.AddUnder(c.transform);
+            }
+        }
     }
 
     // A second back press on the main menu within this many seconds exits the game.

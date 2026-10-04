@@ -36,6 +36,12 @@ public static class NebulaSkin
             if (title.fontSize >= 64 && (title.name == "Title" || title.name.StartsWith("Title")))
                 Heading(title);
 
+        Transform owned = menu.Find("TitleContainer/DiamondsOwned");
+        if (owned != null)
+            DiamondChip(owned);
+        if (menu.name == "PurchaseMenu")
+            PurchaseCounters(menu);
+
         foreach (Image image in menu.GetComponentsInChildren<Image>(true))
         {
             if (image.sprite == null)
@@ -75,10 +81,7 @@ public static class NebulaSkin
         if (was.a < 0.02f)
             return; // an invisible holder
         if (image.GetComponent<ScrollRect>() != null)
-        {
-            image.color = Color.clear; // a frame round a list: the list is enough
-            return;
-        }
+            return; // a list's own box (translucent black) stays as it is
         if (size.y < 70f && image.transform.parent != null && image.transform.parent.GetComponentInParent<Button>() != null)
         {
             UiKit.Style(image, "pill", UiKit.WithAlpha(Color.white, 0.2f)); // a label on a button
@@ -102,6 +105,158 @@ public static class NebulaSkin
                 Words(t, t.color.a);
             else if (t.name.StartsWith("Title"))
                 Heading(t);
+    }
+
+    /// <summary>
+    /// The diamonds owned, top right (the shop, the Upgrade menu): the spinning gem as it was, its
+    /// number on a glass pill with the lit edge.
+    /// </summary>
+    public static void DiamondChip(Transform owned)
+    {
+        AsTheBox(owned.Find("Mesh"));
+        Transform count = owned.Find("Count");
+        if (count != null)
+            CountPill(count, UiKit.Text);
+    }
+
+    // The tilt the shop's mystery box button has its box at (a little from above): the other
+    // icons over a count - the diamonds at the top, the Purchase menu's power-ups - the same.
+    private const float BOX_TILT = 12f;
+
+    public static void AsTheBox(Transform mesh)
+    {
+        if (mesh == null)
+            return;
+        // The box model faces the other way from the gem and the power-ups: the same view from
+        // above is the opposite tilt for them.
+        bool box = mesh.name.Contains("Box") || (mesh.parent != null && mesh.parent.name.Contains("Box"));
+        mesh.localRotation = Quaternion.Euler(box ? BOX_TILT : -BOX_TILT, mesh.localEulerAngles.y, 0f);
+    }
+
+    /// <summary>A count's background (the pill a number sits on, under a 3D icon): glass with a
+    /// cyan-to-violet edge and room round the number.</summary>
+    public static void CountPill(Transform count, Color textColour)
+    {
+        Image pill = count.GetComponent<Image>();
+        if (pill == null || count.Find("Edge") != null)
+            return;
+        const float HEIGHT = 44f;
+        UiKit.Style(pill, "round_sheen", UiKit.WithAlpha(UiKit.Hex("0E1640"), 0.92f));
+        pill.pixelsPerUnitMultiplier = 36f / (HEIGHT / 2f); // corners half the height: a pill
+        // Its width still follows the number; its height is its own.
+        HorizontalOrVerticalLayoutGroup layout = count.GetComponent<HorizontalOrVerticalLayoutGroup>();
+        if (layout != null)
+        {
+            layout.padding = new RectOffset(20, 20, 0, 0);
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlHeight = false;
+            layout.childForceExpandHeight = false;
+        }
+        ContentSizeFitter fit = count.GetComponent<ContentSizeFitter>();
+        if (fit != null)
+            fit.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+        RectTransform r = (RectTransform)count;
+        r.sizeDelta = new Vector2(r.sizeDelta.x, HEIGHT);
+        Image edge = UiKit.Image(count, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.6f));
+        edge.pixelsPerUnitMultiplier = pill.pixelsPerUnitMultiplier;
+        UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
+        UiKit.Stretch(edge.rectTransform);
+        edge.transform.SetAsFirstSibling();
+        foreach (TMP_Text text in count.GetComponentsInChildren<TMP_Text>(true))
+        {
+            text.colorGradientPreset = null;
+            text.enableVertexGradient = false;
+            text.color = textColour;
+            text.alignment = TextAlignmentOptions.Center;
+            text.rectTransform.sizeDelta = new Vector2(text.rectTransform.sizeDelta.x, HEIGHT);
+        }
+    }
+
+    // The Purchase menu's row of what the player has - diamonds, double points, bolts, chances,
+    // boxes: on one glass strip, clear of the Back button, each number on its pill in its item's
+    // colour. A tap on one scrolls the list to where that item is sold (PurchaseJump).
+    private static readonly string[] COUNTERS = { "DiamondsOwned", "DoublePointsOwned", "BoltsOwned", "ChancesOwned", "BoxesOwned" };
+    private static readonly string[] SECTIONS = { "Diamonds", "Double Points", "Bolts", "Chances", "Boxes" };
+    private static readonly string[] COUNTER_COLOURS = { "E58CFF", "FFD45A", "6FC3FF", "FF7A8A", "FFB347" };
+    private const float STRIP_Y = -312f;  // its centre; the Back button ends at -196
+
+    public static void PurchaseCounters(Transform menu)
+    {
+        RectTransform first = menu.Find(COUNTERS[0]) as RectTransform;
+        if (first == null || menu.Find("Counters") != null)
+            return;
+        Image strip = UiKit.Image(menu, "Counters", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.7f));
+        RectTransform sr = strip.rectTransform;
+        sr.anchorMin = sr.anchorMax = new Vector2(0.5f, 1f);
+        sr.pivot = new Vector2(0.5f, 0.5f);
+        sr.anchoredPosition = new Vector2(0, STRIP_Y);
+        sr.sizeDelta = new Vector2(1000, 176);
+        strip.transform.SetSiblingIndex(first.GetSiblingIndex());
+        Image edge = UiKit.Image(strip.transform, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.6f));
+        UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
+        UiKit.Stretch(edge.rectTransform);
+        for (int i = 1; i < COUNTERS.Length; i++)
+        {
+            Image line = UiKit.Image(strip.transform, "Divider" + i, "round_fill", UiKit.WithAlpha(Color.white, 0.14f));
+            line.rectTransform.anchorMin = line.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            line.rectTransform.anchoredPosition = new Vector2(-500 + 200 * i, 0);
+            line.rectTransform.sizeDelta = new Vector2(2, 116);
+            line.type = Image.Type.Simple;
+        }
+        // The list starts under the strip (it ran up behind it), its foot where it was.
+        RectTransform list = menu.Find("3DScrollView") as RectTransform;
+        if (list != null)
+        {
+            Vector3[] c = new Vector3[4];
+            list.GetWorldCorners(c);
+            float listTop = menu.InverseTransformPoint(c[1]).y;
+            sr.GetWorldCorners(c);
+            float stripFoot = menu.InverseTransformPoint(c[0]).y - 14f;
+            float over = listTop - stripFoot;
+            if (over > 0f)
+            {
+                list.sizeDelta -= new Vector2(0f, over);
+                list.anchoredPosition -= new Vector2(0f, over * (1f - list.pivot.y));
+            }
+        }
+        PurchaseJump jump = menu.gameObject.AddComponent<PurchaseJump>();
+        jump.below = sr;
+        float shift = STRIP_Y - -287f; // the counters move down with the strip
+        for (int i = 0; i < COUNTERS.Length; i++)
+        {
+            Transform c = menu.Find(COUNTERS[i]);
+            if (c == null)
+                continue;
+            RectTransform cr = (RectTransform)c;
+            cr.anchoredPosition = new Vector2(-400 + 200 * i, cr.anchoredPosition.y + shift);
+            AsTheBox(c.Find("Mesh"));
+            cr.sizeDelta = new Vector2(196, cr.sizeDelta.y);
+            // The numbers in each item's colour, straight on the strip (no pill of their own).
+            Transform count = c.Find("Count");
+            if (count != null)
+            {
+                Image pill = count.GetComponent<Image>();
+                if (pill != null) { pill.sprite = null; pill.enabled = false; }
+                foreach (TMP_Text text in count.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    text.colorGradientPreset = null;
+                    text.enableVertexGradient = false;
+                    text.color = UiKit.Hex(COUNTER_COLOURS[i]);
+                }
+            }
+            // Its slot of the strip is a button to its item in the list (the counter's own
+            // invisible image would catch the tap first: it lets it through).
+            Image own = c.GetComponent<Image>();
+            if (own != null)
+                own.raycastTarget = false;
+            Image slot = UiKit.Image(strip.transform, "Go" + SECTIONS[i].Replace(" ", ""), "round_fill", Color.clear);
+            slot.raycastTarget = true;
+            UiKit.Place(slot.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(-400 + 200 * i, 0), new Vector2(196, 176));
+            string section = SECTIONS[i];
+            Button b = slot.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            b.onClick.AddListener(() => jump.To(section));
+        }
     }
 
     public static void Heading(TMP_Text title)

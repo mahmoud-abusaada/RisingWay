@@ -24,6 +24,10 @@
 //   -shotDump             each menu's objects as they are at run time, in the log
 //   -shotScrollEnd        each menu also scrolled to its end
 //   -shotUpgradeTap Bolt  buy that upgrade on the Upgrade menu and shoot its animation
+//   -shotVideo <s>        a silent clip of the run instead of pictures (VideoRecorder): frames in
+//                         <folder>/<shotName>/; -videoFps 30, -videoFrom <s> (start that many game
+//                         seconds into the run; a run plays at timeScale 1.5), -videoBalls 53,63,73 -videoBallEvery 2 (change ball as it goes)
+//   -shotMenuVideo <s>    a clip of the main menu first (<shotName>_menu)
 //
 // The menus are a canvas this camera draws, laid out for the screen it renders to: each shot
 // renders to its texture for a few frames first, so the UI is laid out for the picture's size.
@@ -62,6 +66,11 @@ public class StoreCapture : MonoBehaviour
         return null;
     }
 
+    private static float F(string s)
+    {
+        return float.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
@@ -90,7 +99,7 @@ public class StoreCapture : MonoBehaviour
         keepBursts = Arg("-shotKeepBursts") != null;
         PathMaker.PreviewAllPatterns = Arg("-shotPatterns") != null;
         Directory.CreateDirectory(folder);
-        Time.captureDeltaTime = 1f / 60f;
+        Time.captureDeltaTime = 1f / (Arg("-videoFps") != null ? F(Arg("-videoFps")) : 60f);
 
         PlayerStats stats = PlayerStats.Instance;
         bool autoPilot = stats.isAutoPilotOn(), tutorials = stats.isTutorialsOn();
@@ -179,6 +188,18 @@ public class StoreCapture : MonoBehaviour
                     }
                     if (Arg("-shotDump") != null)
                         Dump(menus.transform.root, full);
+                    // -shotPurchaseJump Bolts: a tap on a counter, and the list where it goes.
+                    if (full == "PurchaseMenu" && Arg("-shotPurchaseJump") != null)
+                    {
+                        FindAnyObjectByType<PurchaseJump>().To(Arg("-shotPurchaseJump"));
+                        float until = Time.realtimeSinceStartup + 0.8f;
+                        while (Time.realtimeSinceStartup < until)
+                            yield return null;
+                        yield return Capture(shotName + "_" + full + "_jump");
+                    }
+                    // -shotShopSteps own:73,close,open,ball:73,ball:5,floors,wait:40,shot:a ...
+                    if (full == "ShopMenu" && Arg("-shotShopSteps") != null)
+                        yield return ShopSteps(menus, materials, stats, Arg("-shotShopSteps"));
                     // -shotBox: open a mystery box in the shop and shoot the reveal as it goes.
                     if (full == "ShopMenu" && Arg("-shotBox") != null)
                     {
@@ -210,6 +231,34 @@ public class StoreCapture : MonoBehaviour
                 }
             }
         }
+        // -shotMenuVideo <seconds>: a clip of the main menu (its ball turning, the UI over it),
+        // then the run as usual.
+        if (Arg("-shotMenuVideo") != null)
+        {
+            GameObject update = GameObject.Find("UpdateDialog");
+            if (update != null)
+                update.SetActive(false);
+            if (Arg("-shotDiamonds") != null)
+            {
+                stats.subtractDiamonds(stats.getDiamondsCount());
+                stats.addDiamonds(int.Parse(Arg("-shotDiamonds")));
+                FindAnyObjectByType<MainMenuSkin>()?.Refresh();
+            }
+            for (int i = 0; i < 60; i++)
+                yield return null;
+            VideoRecorder rec = gameObject.AddComponent<VideoRecorder>();
+            rec.Begin(folder, shotName + "_menu", width, height, true);
+            int total = Mathf.RoundToInt(F(Arg("-shotMenuVideo")) / Time.captureDeltaTime);
+            while (rec.Frames < total)
+                yield return null;
+            rec.End();
+            Destroy(rec);
+            if (Arg("-shotVideo") == null)
+            {
+                Restore(materials, stats, ballBefore, floorBefore, autoPilot, tutorials);
+                yield break;
+            }
+        }
         if (Arg("-shotPowerUps") != null)
         {
             int n = int.Parse(Arg("-shotPowerUps"));
@@ -226,6 +275,49 @@ public class StoreCapture : MonoBehaviour
         PickUpsManager pickUps = FindAnyObjectByType<PickUpsManager>();
         int next = 0;
         bool boltDone = boltAt < 0, doubleDone = doubleAt < 0;
+
+        // -shotVideo <seconds>: a clip of the run instead of pictures (see the header).
+        if (Arg("-shotVideo") != null)
+        {
+            float seconds = F(Arg("-shotVideo")), from = Arg("-videoFrom") != null ? F(Arg("-videoFrom")) : 0f;
+            string[] balls = Arg("-videoBalls") != null ? Arg("-videoBalls").Split(',') : new string[0];
+            float every = Arg("-videoBallEvery") != null ? F(Arg("-videoBallEvery")) : 2f;
+            VideoRecorder rec = null;
+            int total = Mathf.RoundToInt(seconds / Time.captureDeltaTime), ballShown = -1;
+            while (rec == null || rec.Frames < total)
+            {
+                float t = Time.time - start;
+                if (!boltDone && t >= boltAt) { boltDone = true; pickUps.activateBolt(); Debug.Log(TAG + "bolt on at " + t.ToString("0.0")); }
+                if (!doubleDone && t >= doubleAt) { doubleDone = true; pickUps.activateDoublePoint(); Debug.Log(TAG + "double points on at " + t.ToString("0.0")); }
+                if (!Utility.camFollowPlayer)
+                {
+                    Debug.LogWarning(TAG + "the ball fell at " + t.ToString("0.0") + "s; stopping");
+                    break;
+                }
+                if (rec == null && t >= from)
+                {
+                    rec = gameObject.AddComponent<VideoRecorder>();
+                    rec.Begin(folder, shotName, width, height, keepUI);
+                    if (Arg("-videoZoom") != null)
+                        rec.Zoom = F(Arg("-videoZoom"));
+                }
+                // (by the clip's own clock: a run plays at Time.timeScale 1.5, so game time runs ahead of it)
+                float clipTime = rec != null ? rec.Frames * Time.captureDeltaTime : 0f;
+                int b = balls.Length > 0 ? Mathf.Min((int)(clipTime / every), balls.Length - 1) : -1;
+                if (b != ballShown && b >= 0)
+                {
+                    ballShown = b;
+                    materials.setSelectedBallMaterial(int.Parse(balls[b]));
+                    player.setPlayerMaterial();
+                }
+                yield return null;
+            }
+            if (rec != null)
+                rec.End();
+            Restore(materials, stats, ballBefore, floorBefore, autoPilot, tutorials);
+            yield break;
+        }
+
         while (next < times.Length)
         {
             float t = Time.time - start;
@@ -271,6 +363,56 @@ public class StoreCapture : MonoBehaviour
 #endif
     }
 
+    // Drives the shop step by step for a look at a sequence: own:<ball> ownfloor:<floor> (owned,
+    // never used: NEW), ball:<id> floor:<id> (select), balls, floors, close, open (the shop again,
+    // as the player would), end (scrolled to the end), box (open a mystery box), tap (a press on
+    // the reveal), wait:<frames>, shot:<name> (a picture), real:<seconds> (wait in real time).
+    private IEnumerator ShopSteps(MenusController menus, MaterialsManager materials, PlayerStats stats, string steps)
+    {
+        foreach (string step in steps.Split(','))
+        {
+            string[] kv = step.Split(':');
+            string k = kv[0], v = kv.Length > 1 ? kv[1] : "";
+            ShopMenu shop = FindAnyObjectByType<ShopMenu>();
+            Debug.Log(TAG + "shop step " + step + (shop == null ? " (the shop is not open)" : ""));
+            if (shop == null && k != "open" && k != "wait" && k != "real" && k != "shot" && k != "own" && k != "ownfloor")
+                continue;
+            switch (k)
+            {
+                case "own": stats.unlockBall(int.Parse(v)); break;
+                case "ownfloor": stats.unlockFloor(int.Parse(v)); break;
+                case "ball": shop.selectBall(int.Parse(v)); break;
+                case "floor": shop.SendMessage("selectFloor", int.Parse(v)); break;
+                case "balls": shop.SetBallsList(); break;
+                case "floors": shop.SetFloorsList(); break;
+                case "close": menus.hideStackMenus(); menus.showAndAddMenuToStack(Menus.MainMenu); break;
+                case "open": menus.hideStackMenus(); menus.showAndAddMenuToStack(Menus.ShopMenu); break;
+                case "box": shop.MysteryBoxClick(); break;
+                case "tap": shop.revealBack(); break;
+                case "end":
+                    for (int round = 0; round < 12; round++)
+                    {
+                        foreach (UnityEngine.UI.ScrollRect sr in FindObjectsByType<UnityEngine.UI.ScrollRect>(FindObjectsSortMode.None))
+                            sr.verticalNormalizedPosition = 0;
+                        for (int i = 0; i < 20; i++)
+                            yield return null;
+                    }
+                    break;
+                case "wait":
+                    for (int i = 0; i < int.Parse(v); i++)
+                        yield return null;
+                    break;
+                case "real":
+                    float until = Time.realtimeSinceStartup + F(v);
+                    while (Time.realtimeSinceStartup < until)
+                        yield return null;
+                    break;
+                case "shot": yield return Capture(shotName + "_" + v); break;
+            }
+            yield return null;
+        }
+    }
+
     // -shotDump: each menu's objects in the log, as they are at run time (prefab contents too).
     private static void Dump(Transform unused, string menu)
     {
@@ -306,7 +448,12 @@ public class StoreCapture : MonoBehaviour
 
     private IEnumerator Capture(string name)
     {
-        RenderTexture rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+        // HDR: URP renders an offscreen camera in its target's format, and in an 8-bit one nothing
+        // is brighter than white - no bloom (the bright stars, the Sun's glow). Read back through
+        // an sRGB copy, which also does the linear-to-sRGB step the screen would.
+        foreach (ShowFPS counter in FindObjectsByType<ShowFPS>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            counter.SetVisible(false); // never the debug frame counter in a picture
+        RenderTexture rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGBHalf);
         rt.antiAliasing = 4;
         Camera cam = Camera.main;
         RenderTexture previous = cam.targetTexture;
@@ -318,8 +465,11 @@ public class StoreCapture : MonoBehaviour
         Canvas uiCanvas = null;
         Camera uiCamera = null;
         int mask = cam.cullingMask;
+        GameObject update = GameObject.Find("UpdateDialog");
+        if (update != null)
+            update.SetActive(false); // the Editor's version check thinks it is out of date
         foreach (Canvas c in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
-            if (c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceCamera && c.worldCamera != null && c.worldCamera != cam)
+            if (keepUI && c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceCamera && c.worldCamera != null && c.worldCamera != cam)
             {
                 uiCanvas = c;
                 uiCamera = c.worldCamera;
@@ -347,12 +497,18 @@ public class StoreCapture : MonoBehaviour
         Vector3 camPos = cam.transform.position;
         Quaternion camRot = cam.transform.rotation;
         PlayerMovement inPlay = FindAnyObjectByType<PlayerMovement>();
+        GameObject shatter = null;
         if (Arg("-shotCloseup") != null && inPlay != null && Utility.gameStarted) // not in the menus
         {
             Transform ball = inPlay.transform;
             Vector3 back = (camPos - ball.position).normalized;
             cam.transform.position = ball.position + back * 1.6f + Vector3.up * 0.3f;
             cam.transform.LookAt(ball.position);
+            // A picked diamond's shards in flight: from this close, in front of a see-through
+            // track part, they showed the sky behind it - black blots over the picture.
+            shatter = GameObject.Find("DiamondShatter");
+            if (shatter != null)
+                shatter.SetActive(false);
         }
 
         // -shotLook pitch,yaw: look that way instead (the sky: -shotLook -30,0 looks up).
@@ -390,12 +546,17 @@ public class StoreCapture : MonoBehaviour
         }
         cam.transform.SetPositionAndRotation(camPos, camRot);
         cam.fieldOfView = fov;
+        if (shatter != null)
+            shatter.SetActive(true);
 
-        RenderTexture.active = rt;
+        RenderTexture shown = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        Graphics.Blit(rt, shown);
+        RenderTexture.active = shown;
         Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
         tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
         tex.Apply();
         RenderTexture.active = null;
+        RenderTexture.ReleaseTemporary(shown);
         string path = Path.Combine(folder, name + ".png");
         File.WriteAllBytes(path, tex.EncodeToPNG());
         Destroy(tex);

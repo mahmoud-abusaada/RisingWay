@@ -136,6 +136,8 @@ public class MainMenu : MonoBehaviour
             setLinkIfPresent(updateVersions.youtubeLink, PlayerStats.Instance.setYoutubeLink);
             setLinkIfPresent(updateVersions.instagramLink, PlayerStats.Instance.setInstagramLink);
             setLinkIfPresent(updateVersions.xLink, PlayerStats.Instance.setXLink);
+            if (updateVersions.blackHoles)
+                MaterialsManager.releaseBlackHoles();
 
             Utility.remoteConfigLoaded = true;
             ShowUpdateDialog();
@@ -173,7 +175,9 @@ public class MainMenu : MonoBehaviour
 #if UNITY_ANDROID
         Application.OpenURL(string.Format("market://details?id=" + Application.identifier));
 #elif UNITY_IPHONE
-        Application.OpenURL("itms-apps://itunes.apple.com/app/" + Application.identifier);
+        // The App Store's own app id (as ShareManager's link), not the bundle id: an itms-apps
+        // link with the bundle id opened nothing.
+        Application.OpenURL("itms-apps://apps.apple.com/app/id6473210923");
 #endif
     }
 

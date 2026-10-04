@@ -25,10 +25,10 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Bend: 0.55
+    - _Bend: 0.8
     - _DiskBrightness: 0.55
     - _DiskInner: 0.68
-    - _DiskOuter: 2.9
+    - _DiskOuter: 3.6
     - _DiskRoll: 4
     - _DiskTilt: 34
     - _Doppler: 0.7
@@ -36,10 +36,10 @@ Material:
     - _InnerDark: 0.75
     - _InnerGlow: 0
     - _Lensing: 0
-    - _Lift: 3.4
-    - _MaxShift: 0.5
-    - _Reach: 3.4
-    - _Ring: 0.9
+    - _Lift: 4.3
+    - _MaxShift: 0.75
+    - _Reach: 4.3
+    - _Ring: 1.2
     - _Spin: 1.2
     - _StencilComp: 8
     - _Turbulence: 0.65

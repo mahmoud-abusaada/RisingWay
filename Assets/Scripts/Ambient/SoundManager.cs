@@ -229,7 +229,7 @@ public class SoundManager : MonoBehaviour
             return;
         // In tune with the layers, which the run's speed has shifted up.
         turnSource.pitch = Mathf.Pow(2f, TurnScale[turnStep] / 12f) * runPitch;
-        turnSource.PlayOneShot(turnAudio, 0.6f);
+        shot(turnSource, turnAudio, 0.6f);
         turnStep = (turnStep + 1) % TurnScale.Length;
     }
 
@@ -303,16 +303,28 @@ public class SoundManager : MonoBehaviour
     {
         sfxSource.Stop();
         superSpeedLoopSource.Stop();
+#if UNITY_EDITOR
+        SoundLog.Stop(sfxSource);
+#endif
     }
 
-    public void PlayDiamond() { sfxDiamondSource.PlayOneShot(diamondAudio); }
-    public void PlayChanceOn() { sfxSource.PlayOneShot(chanceOnAudio); }
-    public void PlayChanceOff() { sfxSource.PlayOneShot(chanceOffAudio); }
-    public void PlayDoublePointsOn() { sfxSource.PlayOneShot(doublePointsOnAudio); }
-    public void PlayDoublePointsOff() { sfxSource.PlayOneShot(doublePointsOffAudio); }
-    public void PlayBoltOn() { sfxSource.PlayOneShot(superSpeedOnAudio); }
-    public void PlayBoltOff() { sfxSource.PlayOneShot(superSpeedOffAudio); }
-    public void PlayBox() { sfxSource.PlayOneShot(boxAudio); }
+    // Every one-shot goes through here, so a recorded clip can write it down (SoundLog).
+    private static void shot(AudioSource source, AudioClip clip, float scale = 1f)
+    {
+        source.PlayOneShot(clip, scale);
+#if UNITY_EDITOR
+        SoundLog.Shot(source, clip, scale);
+#endif
+    }
+
+    public void PlayDiamond() { shot(sfxDiamondSource, diamondAudio); }
+    public void PlayChanceOn() { shot(sfxSource, chanceOnAudio); }
+    public void PlayChanceOff() { shot(sfxSource, chanceOffAudio); }
+    public void PlayDoublePointsOn() { shot(sfxSource, doublePointsOnAudio); }
+    public void PlayDoublePointsOff() { shot(sfxSource, doublePointsOffAudio); }
+    public void PlayBoltOn() { shot(sfxSource, superSpeedOnAudio); }
+    public void PlayBoltOff() { shot(sfxSource, superSpeedOffAudio); }
+    public void PlayBox() { shot(sfxSource, boxAudio); }
 
     // Mystery box reveal. Its own source so the ticks can rise in pitch without detuning the
     // menu clicks that share menusSource; it follows the Menus volume.
@@ -331,27 +343,49 @@ public class SoundManager : MonoBehaviour
     {
         AudioSource s = RevealSource();
         s.pitch = pitch;
-        s.PlayOneShot(menuAudio, 0.8f);
+        shot(s, menuAudio, 0.8f);
     }
     public void PlayRevealWin(PrizeRarity rarity)
     {
         AudioSource s = RevealSource();
         s.pitch = 1f;
-        s.PlayOneShot(boxAudio);
+        shot(s, boxAudio);
         if (rarity >= PrizeRarity.Epic)
-            sfxSource.PlayOneShot(superSpeedOnAudio, 0.7f);
+            shot(sfxSource, superSpeedOnAudio, 0.7f);
         else if (rarity == PrizeRarity.Rare)
-            sfxSource.PlayOneShot(chanceOnAudio, 0.6f);
+            shot(sfxSource, chanceOnAudio, 0.6f);
     }
-    public void PlayRevealCollect() { sfxDiamondSource.PlayOneShot(diamondAudio); }
+    public void PlayRevealCollect() { shot(sfxDiamondSource, diamondAudio); }
     // An upgrade bought: the box's chime, a little higher for each level.
     public void PlayUpgrade(int level)
     {
         AudioSource s = RevealSource();
         s.pitch = 0.92f + 0.07f * level;
-        s.PlayOneShot(boxAudio);
-        sfxSource.PlayOneShot(chanceOnAudio, 0.45f);
+        shot(s, boxAudio);
+        shot(sfxSource, chanceOnAudio, 0.45f);
     }
-    public void PlayBack() { menusSource.PlayOneShot(backAudio); }
-    public void PlayMenu() { menusSource.PlayOneShot(menuAudio); }
+    public void PlayBack() { shot(menusSource, backAudio); }
+    public void PlayMenu() { shot(menusSource, menuAudio); }
+
+    // The menus' switches and sliders (UiSound): small sounds of their own, made by
+    // Tools/UI/make_ui_sounds.py, loaded from Resources/Audio/UI. They follow the Menus volume.
+    private AudioClip toggleOn, toggleOff, sliderTick;
+    public void PlayToggle(bool on)
+    {
+        if (toggleOn == null)
+        {
+            toggleOn = Resources.Load<AudioClip>("Audio/UI/Toggle On");
+            toggleOff = Resources.Load<AudioClip>("Audio/UI/Toggle Off");
+        }
+        AudioClip clip = on ? toggleOn : toggleOff;
+        if (clip != null)
+            shot(menusSource, clip, 0.8f);
+    }
+    public void PlaySliderTick()
+    {
+        if (sliderTick == null)
+            sliderTick = Resources.Load<AudioClip>("Audio/UI/Slider Tick");
+        if (sliderTick != null)
+            shot(menusSource, sliderTick, 0.6f);
+    }
 }

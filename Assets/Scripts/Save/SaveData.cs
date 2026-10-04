@@ -71,6 +71,13 @@ public class SaveData
     public int selectedFloorId = 1;
     public List<int> ownedBallIds = new List<int>();
     public List<int> ownedFloorIds = new List<int>();
+    // Cosmetics the player has put on at least once. An owned one that is not here is new: the
+    // shop marks it NEW, with a dot on its tab and on the main menu's Shop button.
+    // usedTracked is false in a save from before these lists; SaveSystem.Repair then counts
+    // everything already owned as used, so an old player is not shown their whole collection as new.
+    public bool usedTracked = false;
+    public List<int> usedBallIds = new List<int>();
+    public List<int> usedFloorIds = new List<int>();
 
     // ---------------------------------------------------------------- entitlements
     /// <summary>
@@ -104,6 +111,9 @@ public class SaveData
         SaveData data = new SaveData();
         data.ownedBallIds.Add(1);
         data.ownedFloorIds.Add(1);
+        data.usedTracked = true;
+        data.usedBallIds.Add(1);
+        data.usedFloorIds.Add(1);
         return data;
     }
 }

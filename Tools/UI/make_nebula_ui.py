@@ -78,6 +78,10 @@ H = 256
 t = (np.arange(H * SS, dtype=np.float32) + 0.5) / (H * SS)
 shade = 0.75 * np.clip(1 - t / 0.35, 0, 1) ** 1.5 + 0.55 * np.clip((t - 0.7) / 0.3, 0, 1) ** 1.5 + 0.18
 save('shade', np.tile(shade[:, None], (1, 4 * SS)))
+# The same in two parts, for the shop: its dark foot sits behind the mystery box button and goes
+# when the button does.
+save('shade_top', np.tile((0.75 * np.clip(1 - t / 0.35, 0, 1) ** 1.5 + 0.18)[:, None], (1, 4 * SS)))
+save('shade_bottom', np.tile((0.62 * np.clip((t - 0.7) / 0.3, 0, 1) ** 1.5)[:, None], (1, 4 * SS)))
 
 # A cut gem, facets in shades of white (tinted violet in the game): the diamonds count.
 from PIL import ImageDraw

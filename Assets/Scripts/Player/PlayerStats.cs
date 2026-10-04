@@ -211,6 +211,7 @@ public sealed class PlayerStats : ScriptableObject
     {
         Data.selectedBallId = id;
         unlockBall(id);
+        markBallUsed(id);
         SaveSystem.Save();
     }
 
@@ -222,8 +223,17 @@ public sealed class PlayerStats : ScriptableObject
     {
         Data.selectedFloorId = id;
         unlockFloor(id);
+        markFloorUsed(id);
         SaveSystem.Save();
     }
+
+    // ---- New cosmetics: owned but never put on (the shop's NEW marks) ---------------------
+    public bool isBallNew(int id) { return Data.ownedBallIds.Contains(id) && !Data.usedBallIds.Contains(id); }
+    public bool isFloorNew(int id) { return Data.ownedFloorIds.Contains(id) && !Data.usedFloorIds.Contains(id); }
+    public bool hasNewBall() { foreach (int id in Data.ownedBallIds) if (!Data.usedBallIds.Contains(id)) return true; return false; }
+    public bool hasNewFloor() { foreach (int id in Data.ownedFloorIds) if (!Data.usedFloorIds.Contains(id)) return true; return false; }
+    public void markBallUsed(int id) { if (!Data.usedBallIds.Contains(id)) Data.usedBallIds.Add(id); }
+    public void markFloorUsed(int id) { if (!Data.usedFloorIds.Contains(id)) Data.usedFloorIds.Add(id); }
 
     public bool isBallOwned(int id)
     {
@@ -439,7 +449,7 @@ public sealed class PlayerStats : ScriptableObject
 
     public string getFacebookLink()
     {
-        return PlayerPrefs.GetString(Utility.Constants.KEY_FACEBOOK_LINK, "https://www.facebook.com/profile.php?id=61555506035327");
+        return PlayerPrefs.GetString(Utility.Constants.KEY_FACEBOOK_LINK, "https://www.facebook.com/RisingWay");
     }
     public void setFacebookLink(string link)
     {
@@ -448,7 +458,7 @@ public sealed class PlayerStats : ScriptableObject
 
     public string getYoutubeLink()
     {
-        return PlayerPrefs.GetString(Utility.Constants.KEY_YOUTUBE_LINK, "https://www.youtube.com/@MahmoudAbuSada");
+        return PlayerPrefs.GetString(Utility.Constants.KEY_YOUTUBE_LINK, "https://www.youtube.com/@RisingWayGame");
     }
     public void setYoutubeLink(string link)
     {
@@ -457,7 +467,7 @@ public sealed class PlayerStats : ScriptableObject
 
     public string getInstagramLink()
     {
-        return PlayerPrefs.GetString(Utility.Constants.KEY_INSTAGRAM_LINK, "https://www.instagram.com/risingway.abusada");
+        return PlayerPrefs.GetString(Utility.Constants.KEY_INSTAGRAM_LINK, "https://www.instagram.com/RisingWayGame");
     }
     public void setInstagramLink(string link)
     {
@@ -466,7 +476,7 @@ public sealed class PlayerStats : ScriptableObject
 
     public string getXLink()
     {
-        return PlayerPrefs.GetString(Utility.Constants.KEY_X_LINK, "https://twitter.com/RisingWayMobile");
+        return PlayerPrefs.GetString(Utility.Constants.KEY_X_LINK, "https://x.com/RisingWayGame");
     }
     public void setXLink(string link)
     {

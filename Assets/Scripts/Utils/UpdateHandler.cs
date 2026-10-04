@@ -94,7 +94,7 @@ public class UpdateHandler : MonoBehaviour
 #if UNITY_ANDROID
         Application.OpenURL(string.Format("market://details?id=" + Application.identifier));
 #elif UNITY_IPHONE
-        Application.OpenURL("itms-apps://itunes.apple.com/app/" + Application.identifier);
+        Application.OpenURL("itms-apps://apps.apple.com/app/id6473210923"); // the App Store id, not the bundle id
 #endif
     }
 
