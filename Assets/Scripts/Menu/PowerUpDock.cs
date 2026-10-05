@@ -22,6 +22,8 @@ public class PowerUpDock : MonoBehaviour
         public Image glow;
         public Image timer;
         public RectTransform badge;
+        public TextMeshProUGUI badgeText;
+        public GameObject infinity; // Chill's chance: always on, never counted
         public RectTransform button;
         public RectTransform mesh;
         public Renderer model;
@@ -111,6 +113,15 @@ public class PowerUpDock : MonoBehaviour
                 UiKit.Restyle(text, 24, Color.white, TextAlignmentOptions.Center);
                 UiKit.Stretch(text.rectTransform);
                 text.margin = Vector4.zero;
+                slot.badgeText = text;
+            }
+            if (type == PickUpType.Chance)
+            {
+                Image inf = UiKit.Image(count, "Infinity", "infinity", Color.white);
+                UiKit.Place(inf.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40, 40));
+                inf.raycastTarget = false;
+                slot.infinity = inf.gameObject;
+                slot.infinity.SetActive(false);
             }
             count.SetAsLastSibling();
         }
@@ -157,15 +168,24 @@ public class PowerUpDock : MonoBehaviour
                     on = Utility.chanceIsOn;
                     break;
             }
-            // No chance in Chill: every fall there is revived anyway, so one would be thrown away.
-            bool hidden = slot.type == PickUpType.Chance && GameMode.T.unlimitedRevives;
-            slot.group.blocksRaycasts = !hidden;
-            if (hidden)
+            // Chill: every fall is revived, as if a chance were always on - shown so (its ring
+            // lit, an infinity on the badge), and nothing to press.
+            bool endless = slot.type == PickUpType.Chance && GameMode.T.unlimitedRevives;
+            if (endless)
             {
-                slot.group.alpha = 0f;
-                continue;
+                on = true;
+                owned = 1;
+                left = 1f;
             }
-            slot.group.alpha = owned > 0 || on ? 1f : 0.38f;
+            // It still takes the tap (so the tap is not a turn); ActivateChance ignores it in Chill.
+            slot.group.blocksRaycasts = true;
+            if (slot.infinity != null && slot.infinity.activeSelf != endless)
+            {
+                slot.infinity.SetActive(endless);
+                if (slot.badgeText != null)
+                    slot.badgeText.enabled = !endless;
+            }
+            slot.group.alpha = (owned > 0 || on) && !(InGameUI.Reviving && !on && !endless) ? 1f : 0.38f;
             centre(slot);
             slot.ring.color = UiKit.WithAlpha(slot.accent, on ? 0 : 0.55f);
             slot.timer.enabled = on;

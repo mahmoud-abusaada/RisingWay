@@ -23,8 +23,22 @@ public class ShowFPS : MonoBehaviour
     /// </summary>
     public void SetVisible(bool visible)
     {
+        if (visible)
+            drawOnTop();
         enabled = visible;
         fpsText.gameObject.SetActive(visible);
         deltaTime = 1f / 60f; // a sane starting average, not a 1/0 spike
+    }
+
+    // Over every menu (Purchase, Upgrade...), which are canvases of their own drawn later: the
+    // counter gets its own canvas, sorted above them all. It takes no touches.
+    private void drawOnTop()
+    {
+        if (fpsText.GetComponent<Canvas>() != null)
+            return;
+        Canvas own = fpsText.gameObject.AddComponent<Canvas>();
+        own.overrideSorting = true;
+        own.sortingOrder = 30000;
+        fpsText.raycastTarget = false;
     }
 }

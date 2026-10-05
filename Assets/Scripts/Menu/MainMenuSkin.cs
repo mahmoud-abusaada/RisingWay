@@ -165,7 +165,7 @@ public class MainMenuSkin : MonoBehaviour
         edge.pixelsPerUnitMultiplier = 1.25f;
         UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
         UiKit.Stretch(edge.rectTransform);
-        float textLeft = 0;
+        float textLeft = CHIP_PAD;
         if (icon != null)
         {
             Image gem = UiKit.Image(back.transform, "Icon", icon, Color.white);
@@ -173,15 +173,29 @@ public class MainMenuSkin : MonoBehaviour
             gem.rectTransform.anchorMin = gem.rectTransform.anchorMax = new Vector2(0, 0.5f);
             gem.rectTransform.anchoredPosition = new Vector2(38, 0);
             gem.rectTransform.sizeDelta = new Vector2(44, 44);
-            textLeft = 30;
+            textLeft = CHIP_ICON_ROOM;
         }
         TextMeshProUGUI text = UiKit.Label(like, back.transform, "Text", "", 30, UiKit.Text, TextAlignmentOptions.Center);
         text.richText = true;
         text.rectTransform.anchorMin = Vector2.zero;
         text.rectTransform.anchorMax = Vector2.one;
         text.rectTransform.offsetMin = new Vector2(textLeft, 0);
-        text.rectTransform.offsetMax = Vector2.zero;
+        text.rectTransform.offsetMax = new Vector2(-CHIP_PAD, 0);
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Overflow;
         return text;
+    }
+
+    // A chip is as wide as what it says: the icon's room on the left, the text, a margin each side.
+    private const float CHIP_PAD = 26f, CHIP_ICON_ROOM = 68f, CHIP_MIN = 150f, CHIP_GAP = 24f;
+
+    private static float fitChip(TextMeshProUGUI text)
+    {
+        RectTransform back = (RectTransform)text.transform.parent;
+        float width = Mathf.Max(CHIP_MIN, -text.rectTransform.offsetMax.x + text.rectTransform.offsetMin.x +
+                                          text.GetPreferredValues(text.text, 10000f, 64f).x);
+        back.sizeDelta = new Vector2(Mathf.Ceil(width), back.sizeDelta.y);
+        return back.sizeDelta.x;
     }
 
     /// <summary>The numbers, and the Upgrade dot (when the menu shows).</summary>
@@ -198,9 +212,19 @@ public class MainMenuSkin : MonoBehaviour
         best.text = "<size=88%><voffset=0.06em><color=" + UiKit.HexOf(UiKit.TextDim) + ">" + (chill ? "LONGEST" : "BEST") +
                     "</color></voffset></size>  " + high;
         best.transform.parent.gameObject.SetActive(high > 0);
-        // On its own in the middle until there is a best score beside it.
-        ((RectTransform)diamonds.transform.parent).anchoredPosition = new Vector2(high > 0 ? 160 : 0, 0);
         diamonds.text = Utility.getFormatedNumber(stats.getDiamondsCount());
+        // Each chip fits its number; the two sit side by side round the middle (the diamonds on
+        // their own there until there is a best score beside them).
+        float wd = fitChip(diamonds);
+        if (high > 0)
+        {
+            float wb = fitChip(best);
+            float total = wb + CHIP_GAP + wd;
+            ((RectTransform)best.transform.parent).anchoredPosition = new Vector2(-total / 2f + wb / 2f, 0);
+            ((RectTransform)diamonds.transform.parent).anchoredPosition = new Vector2(total / 2f - wd / 2f, 0);
+        }
+        else
+            ((RectTransform)diamonds.transform.parent).anchoredPosition = Vector2.zero;
         if (upgradeDot != null)
             upgradeDot.SetActive(canUpgrade(stats));
         if (shopDot != null)

@@ -5,7 +5,11 @@ using UnityEngine;
 public class PlayerFall : MonoBehaviour
 {
 
-    private float distToGround = 5; // Distance between the player and the ground
+    // How far below the ball track still counts as under it. The ball rolls 0.25 above the track
+    // (its radius), a little more on the steepest slides. It was 5: when the ball fell off where
+    // the path's laps lie stacked (spirals, climbs), the rays kept finding the laps below as it
+    // dropped past them, so the fall went unnoticed for seconds, the camera following it down.
+    private float distToGround = 1.5f;
     private float radiusToCheck = 0.4f;
     private MenusController menusController;
     private ScoreManager scoreManager;
@@ -129,6 +133,25 @@ public class PlayerFall : MonoBehaviour
     {
         runStartedAt = Time.unscaledTime;
         lastChillAdAt = -1f;
+    }
+
+    /// <summary>
+    /// Chill: "End run" while the ball waits in the air after a fall (InGameUI) - the summary, as at
+    /// the end of any run, without going through the pause menu. Here, not on the pause menu: that
+    /// one sets itself up only once it has been opened.
+    /// </summary>
+    public void endChillRunFromRevive()
+    {
+        if (!PlayerMovement.WaitingForTap || !MultiClickHandler.Instance.CanClick())
+            return;
+        PlayerMovement.ClearWaitingForTap();
+        if (inGameUI == null)
+            inGameUI = FindObjectOfType<InGameUI>();
+        inGameUI.showContinuePrompt(false);
+        GetComponent<PlayerLinkedObjectsController>().SetSpawningEffectLooping(false);
+        pathMaker.startDestroyingOldPath();
+        pickUpsManager.clearSpawnedPickups();
+        endGame(false);
     }
 
     private int numberOfLosesAfterAd = 0;

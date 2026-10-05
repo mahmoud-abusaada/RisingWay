@@ -29,7 +29,6 @@ public class SolarSystem : MonoBehaviour
     private static readonly int SunPositionId = Shader.PropertyToID("_SunPosition");
     private const int SATURN = 5;
     private static readonly Color SunTrailColour = new Color(1f, 0.78f, 0.42f);
-    private static readonly Color PlanetTrailColour = new Color(0.62f, 0.74f, 1f);
     private Mesh quad;
 
     private Transform myMoonsParent;
@@ -85,15 +84,17 @@ public class SolarSystem : MonoBehaviour
 
         Vector3 solarSystemRotation = new Vector3(0, 0, 90);
 
-        moons.Add(new Moon(1.5f, 0.52f, 0.05f, mercury, solarSystemRotation));
-        moons.Add(new Moon(1.3f, 0.56f, 0.05f, venus, solarSystemRotation));
-        moons.Add(new Moon(1.5f, 0.61f, 0.075f, earth, solarSystemRotation));
-        moons.Add(new Moon(1.3f, 0.66f, 0.06f, mars, solarSystemRotation));
-        moons.Add(new Moon(1.1f, 0.73f, 0.075f, jupiter, solarSystemRotation));
-        moons.Add(new Moon(0.9f, 0.9f, 0.075f, saturn, solarSystemRotation));
-        moons.Add(new Moon(0.8f, 1f, 0.05f, uranus, solarSystemRotation));
-        moons.Add(new Moon(0.6f, 1.25f, 0.05f, neptune, solarSystemRotation));
-        moons.Add(new Moon(0.6f, 1.4f, 0.05f, pluto, solarSystemRotation));
+        // Sizes a little nearer the real order (the giants larger, the rocky ones small), spread a
+        // little wider so the giants' moons have room.
+        moons.Add(new Moon(1.5f, 0.50f, 0.034f, mercury, solarSystemRotation));
+        moons.Add(new Moon(1.3f, 0.555f, 0.052f, venus, solarSystemRotation));
+        moons.Add(new Moon(1.5f, 0.615f, 0.056f, earth, solarSystemRotation));
+        moons.Add(new Moon(1.3f, 0.675f, 0.042f, mars, solarSystemRotation));
+        moons.Add(new Moon(1.1f, 0.78f, 0.105f, jupiter, solarSystemRotation));
+        moons.Add(new Moon(0.9f, 0.96f, 0.09f, saturn, solarSystemRotation));
+        moons.Add(new Moon(0.8f, 1.11f, 0.066f, uranus, solarSystemRotation));
+        moons.Add(new Moon(0.6f, 1.26f, 0.064f, neptune, solarSystemRotation));
+        moons.Add(new Moon(0.6f, 1.38f, 0.03f, pluto, solarSystemRotation));
 
         for (int i = 0; i < moons.Count; i++)
         {
@@ -118,9 +119,128 @@ public class SolarSystem : MonoBehaviour
             planetTransforms.Add(newMoon);
             moonRotatingTransforms.Add(newMoonRotatingParent);
             newMoon.GetChild(0).gameObject.SetActive(true);
-            styleTrail(newMoon.GetChild(0).GetComponent<TrailRenderer>(), PlanetTrailColour, 0.7f, 0.5f);
+            // Each planet's trail in its own colour, wider for the giants.
+            styleTrail(newMoon.GetChild(0).GetComponent<TrailRenderer>(), PlanetTrailColours[i], 0.45f + moons[i].scale * 6f, 0.6f);
             if (i == SATURN)
                 addRings(newMoon);
+            addSatellites(i, newMoonRotatingParent, newMoon, scale);
+        }
+    }
+
+    // ---- Moons of the planets --------------------------------------------------------------------
+    // Each on its own little orbit round its planet, with a short fine trail in the planet's colour,
+    // lighter: loops drawn along the planet's way round the Sun. They ride on a holder beside the
+    // planet, not on the planet, which spins.
+
+    // The trail colour of each planet, from its look.
+    private static readonly Color[] PlanetTrailColours =
+    {
+        new Color(0.78f, 0.70f, 0.62f), // Mercury, warm grey
+        new Color(1.00f, 0.84f, 0.50f), // Venus, pale gold
+        new Color(0.35f, 0.70f, 1.00f), // Earth, blue
+        new Color(1.00f, 0.45f, 0.28f), // Mars, rust red
+        new Color(1.00f, 0.66f, 0.38f), // Jupiter, orange tan
+        new Color(1.00f, 0.86f, 0.55f), // Saturn, gold
+        new Color(0.45f, 0.95f, 0.95f), // Uranus, cyan
+        new Color(0.35f, 0.50f, 1.00f), // Neptune, deep blue
+        new Color(0.80f, 0.68f, 1.00f), // Pluto, lavender
+    };
+
+    private struct Satellite
+    {
+        public int planet;     // index in the planets above
+        public float orbit;    // in the planet's radii
+        public float size;     // in the planet's radii
+        public float speed;    // degrees a second
+        public int look;       // 0 grey rock, 1 sulphur yellow, 2 ice white, 3 hazy orange
+        public Satellite(int planet, float orbit, float size, float speed, int look)
+        { this.planet = planet; this.orbit = orbit; this.size = size; this.speed = speed; this.look = look; }
+    }
+
+    private static readonly Satellite[] Satellites =
+    {
+        new Satellite(2, 2.2f, 0.32f, 160f, 0),  // the Moon
+        new Satellite(3, 1.8f, 0.16f, 260f, 0),  // Phobos
+        new Satellite(3, 2.5f, 0.13f, 190f, 0),  // Deimos
+        new Satellite(4, 1.5f, 0.12f, 240f, 1),  // Io
+        new Satellite(4, 1.9f, 0.10f, 190f, 2),  // Europa
+        new Satellite(4, 2.4f, 0.15f, 140f, 0),  // Ganymede
+        new Satellite(4, 2.9f, 0.13f, 110f, 0),  // Callisto
+        new Satellite(5, 2.6f, 0.15f, 120f, 3),  // Titan, past the rings
+        new Satellite(5, 3.1f, 0.08f, 95f, 2),   // Iapetus
+        new Satellite(6, 1.9f, 0.14f, 170f, 2),  // Titania
+        new Satellite(6, 2.5f, 0.13f, 130f, 0),  // Oberon
+        new Satellite(7, 2.0f, 0.18f, 150f, 2),  // Triton
+        new Satellite(8, 2.2f, 0.45f, 120f, 0),  // Charon
+    };
+
+    private readonly List<Transform> satellitePivots = new List<Transform>();
+    private readonly List<float> satelliteSpeeds = new List<float>();
+    private Material[] satelliteLooks;
+
+    private Material satelliteLook(int look)
+    {
+        if (satelliteLooks == null)
+        {
+            satelliteLooks = new Material[4];
+            Material[] from = { mercury, venus, pluto, venus };
+            float[] brightness = { 1.05f, 1.35f, 1.5f, 0.9f };
+            for (int i = 0; i < 4; i++)
+            {
+                if (from[i] == null)
+                    continue;
+                satelliteLooks[i] = new Material(from[i]) { name = "Moon look " + i };
+                if (satelliteLooks[i].HasProperty("_Brightness"))
+                    satelliteLooks[i].SetFloat("_Brightness", brightness[i]);
+                if (satelliteLooks[i].HasProperty("_Shadow"))
+                    satelliteLooks[i].SetFloat("_Shadow", 0.3f); // small: a black dot reads as a hole, not a moon
+                if (satelliteLooks[i].HasProperty("_Atmosphere"))
+                    satelliteLooks[i].SetColor("_Atmosphere", Color.black);
+            }
+        }
+        return satelliteLooks[Mathf.Clamp(look, 0, 3)];
+    }
+
+    private void addSatellites(int index, Transform orbit, Transform planetBody, float planetScale)
+    {
+        float radius = planetScale * 0.5f; // the planet prefab is a unit sphere
+        Transform holder = null;
+        foreach (Satellite s in Satellites)
+        {
+            if (s.planet != index)
+                continue;
+            if (holder == null)
+            {
+                holder = new GameObject("MoonsOf" + index).transform;
+                holder.SetParent(orbit, false);
+                holder.localPosition = planetBody.localPosition;
+                // Saturn's moons go round in its tipped equator, with the rings.
+                holder.localRotation = index == SATURN ? planetBody.localRotation : Quaternion.Euler(Random.Range(-12f, 12f), 0f, 0f);
+            }
+            Transform pivot = new GameObject("MoonPivot").transform;
+            pivot.SetParent(holder, false);
+            pivot.localRotation = Quaternion.Euler(Random.Range(-8f, 8f), Random.Range(0f, 360f), 0f);
+            Transform body = Instantiate(planet, pivot);
+            body.name = "Moon";
+            body.localPosition = new Vector3(0f, 0f, radius * s.orbit);
+            body.localRotation = Quaternion.identity;
+            body.localScale = Vector3.one * Mathf.Max(radius * 2f * s.size, 0.004f);
+            Material look = satelliteLook(s.look);
+            if (look != null)
+                body.GetComponent<Renderer>().sharedMaterial = look;
+            if (body.childCount > 0)
+            {
+                TrailRenderer trail = body.GetChild(0).GetComponent<TrailRenderer>();
+                body.GetChild(0).gameObject.SetActive(trail != null);
+                if (trail != null)
+                {
+                    styleTrail(trail, Color.Lerp(PlanetTrailColours[index], Color.white, 0.45f), 0.12f, 0.45f);
+                    trail.time = 0.35f;
+                    trail.Clear();
+                }
+            }
+            satellitePivots.Add(pivot);
+            satelliteSpeeds.Add(s.speed * (Random.value < 0.15f ? -1f : 1f));
         }
     }
 
@@ -194,6 +314,8 @@ public class SolarSystem : MonoBehaviour
             planetTransforms.Clear();
             moonRotatingTransforms.Clear();
             moons.Clear();
+            satellitePivots.Clear();
+            satelliteSpeeds.Clear();
             Utility.clearAllChilds(myMoonsParent);
             GameObject.Destroy(myMoonsParent.gameObject);
             myMoonsParent = null;
@@ -204,6 +326,9 @@ public class SolarSystem : MonoBehaviour
     {
         if (myMoonsParent != null)
             myMoonsParent.position = parent.position;
+        for (int i = 0; i < satellitePivots.Count; i++)
+            if (satellitePivots[i] != null)
+                satellitePivots[i].Rotate(0f, satelliteSpeeds[i] * Time.deltaTime, 0f, Space.Self);
         // Where the planets' light comes from (Planet.shader).
         Shader.SetGlobalVector(SunPositionId, sunTrail.parent.position);
 

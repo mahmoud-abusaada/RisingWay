@@ -46,11 +46,18 @@ Swipe left/right between the three modes on the main menu, with:
 - Insane shown locked with its requirement ("Reach 300 in Standard") until it opens.
 The last mode played is remembered. New players start on Standard.
 
-## 3. Day/night
-- **B (Chill):** a slow day-to-night cycle over a few minutes, independent of score.
-- **A (Standard, Insane):** the sky goes from dawn near a planet into deep night space as you climb.
-Uses the sky's one global visibility value (SpaceSky) — cheap. Check: track and pickups must read well
-in the brightest phase.
+## 3. Day/night (built 2026-10-05: AtmosphereSky.cs + Atmosphere.shader)
+A new sky, replacing the old blue background and sprite clouds: a planet's air and the planet itself
+below the horizon (cloud bands, haze, a glowing rim), drawn over the galaxy. The planet is also a wall
+in the depth buffer, so the Sun and planets set behind it.
+- **A (Standard, Insane):** dawn just above a planet, the real Sun rising on its horizon. Climbing
+  (camera height 20 -> 700) darkens the sky from the top down, drops the horizon and leaves the planet
+  as a ball under the track with a glowing rim: deep space. Insane's dawn is red.
+- **B (Chill):** a 4-minute day on the clock (morning, noon, sunset, night with stars, sunrise); the
+  solar system is lifted and sunk so the Sun really rises and sets.
+- Menus and "stay in space": space only, as before.
+- Editor checks: StoreCapture `-shotMode <mode> -skyClimb 0..1` (A) or `-skyDay 0..1` (B: 0.25 noon,
+  0.5 sunset, 0.75 midnight).
 
 ## 4. Explore (later)
 An Explore button on the main menu: free camera — drag to orbit round the ball and the solar system,

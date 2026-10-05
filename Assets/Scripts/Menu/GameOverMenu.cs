@@ -188,6 +188,7 @@ public class GameOverMenu : MonoBehaviour
         RectTransform replay = (RectTransform)replayButton.transform;
         Image back = UiKit.Image(replay.parent, "DoubleDiamonds", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.85f));
         back.pixelsPerUnitMultiplier = 1.6f;
+        back.raycastTarget = true; // UiKit's images take no taps by default
         RectTransform r = back.rectTransform;
         r.anchorMin = replay.anchorMin;
         r.anchorMax = replay.anchorMax;

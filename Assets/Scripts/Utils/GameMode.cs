@@ -60,7 +60,7 @@ public static class GameMode
 
     private static readonly Tuning insane = new Tuning
     {
-        startSpeed = 7.5f, topSpeed = 15.5f, rampScore = 420f,
+        startSpeed = 10f, topSpeed = 15.5f, rampScore = 360f, // fast from the first turn
         earlyTapSeconds = 0f,
         startPatternTier = 3, maxPatternTier = 5, patternScoreScale = 0.5f,
         diamondRunMin = 7, diamondRunMax = 15, diamondValue = 2,

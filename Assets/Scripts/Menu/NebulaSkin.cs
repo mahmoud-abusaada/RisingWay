@@ -203,21 +203,16 @@ public static class NebulaSkin
             line.rectTransform.sizeDelta = new Vector2(2, 116);
             line.type = Image.Type.Simple;
         }
-        // The list starts under the strip (it ran up behind it), its foot where it was.
+        // The list: no box of its own, the same gap under the strip as every list has under what
+        // is above it, and its groups as wide as the strip (MenuLayout).
         RectTransform list = menu.Find("3DScrollView") as RectTransform;
         if (list != null)
         {
-            Vector3[] c = new Vector3[4];
-            list.GetWorldCorners(c);
-            float listTop = menu.InverseTransformPoint(c[1]).y;
-            sr.GetWorldCorners(c);
-            float stripFoot = menu.InverseTransformPoint(c[0]).y - 14f;
-            float over = listTop - stripFoot;
-            if (over > 0f)
-            {
-                list.sizeDelta -= new Vector2(0f, over);
-                list.anchoredPosition -= new Vector2(0f, over * (1f - list.pivot.y));
-            }
+            MenuLayout.ListBelow(list, MenuLayout.GROUP_WIDTH, sr);
+            ScrollRect scroll = list.GetComponent<ScrollRect>();
+            MenuLayout.NoBox(scroll);
+            if (scroll != null && scroll.content != null && scroll.content.GetComponent<ListGroupsFit>() == null)
+                scroll.content.gameObject.AddComponent<ListGroupsFit>();
         }
         PurchaseJump jump = menu.gameObject.AddComponent<PurchaseJump>();
         jump.below = sr;

@@ -68,8 +68,8 @@ public class ModePicker : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         p.lockIcon.raycastTarget = false;
 
         // Arrows either side: they take taps (above the swipe area).
-        p.arrow(-1, new Vector2(-330, 30));
-        p.arrow(1, new Vector2(330, 30));
+        p.previous = p.arrow(-1, new Vector2(-330, 30));
+        p.next = p.arrow(1, new Vector2(330, 30));
 
         // Dots: which of the three.
         p.dots = new Image[Modes.Length];
@@ -89,7 +89,9 @@ public class ModePicker : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         return p;
     }
 
-    private void arrow(int step, Vector2 at)
+    private GameObject previous, next;
+
+    private GameObject arrow(int step, Vector2 at)
     {
         Image a = UiKit.Image(holder, step < 0 ? "Previous" : "Next", "chevron", UiKit.WithAlpha(Color.white, 0.85f));
         UiKit.Place(a.rectTransform, new Vector2(0.5f, 0.5f), at, new Vector2(64, 64));
@@ -99,10 +101,12 @@ public class ModePicker : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         // A bigger target than the arrow itself.
         Image hit = UiKit.Image(a.transform, "Hit", "round_fill", Color.clear);
         UiKit.Place(hit.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150, 170));
+        hit.raycastTarget = true; // the tap area (UiKit's images take no taps by default)
         Button b = a.gameObject.AddComponent<Button>();
         b.transition = Selectable.Transition.None;
         b.onClick.AddListener(() => go(step));
         a.gameObject.AddComponent<PressDip>();
+        return a.gameObject;
     }
 
     // ---- choosing ------------------------------------------------------------------------------
@@ -140,6 +144,11 @@ public class ModePicker : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         title.enableVertexGradient = true;
         title.colorGradient = new VertexGradient(from, to, from, to);
         title.color = Color.white;
+        // No arrow past the ends: none to the left of Chill, none to the right of Insane.
+        if (previous != null)
+            previous.SetActive(index > 0);
+        if (next != null)
+            next.SetActive(index < Modes.Length - 1);
         for (int i = 0; i < dots.Length; i++)
             dots[i].color = i == index ? Color.Lerp(from, to, 0.5f) : UiKit.WithAlpha(Color.white, 0.25f);
         if (open)

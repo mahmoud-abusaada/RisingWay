@@ -52,7 +52,7 @@ public class SpaceSky : MonoBehaviour
         // Drawn around the camera wherever it is: bounds that are never culled.
         Bounds everywhere = new Bounds(Vector3.zero, Vector3.one * 1e6f);
 
-        Mesh box = buildBox();
+        Mesh box = BuildBox();
         box.bounds = everywhere;
         addRenderer("Galaxy", box, galaxyMaterial);
 
@@ -205,7 +205,7 @@ public class SpaceSky : MonoBehaviour
     }
 
     // A unit cube seen from inside. The shader uses each vertex only as a direction.
-    private static Mesh buildBox()
+    internal static Mesh BuildBox()
     {
         Vector3[] v =
         {

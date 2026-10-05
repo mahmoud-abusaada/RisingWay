@@ -284,9 +284,11 @@ public class InGameUI : MonoBehaviour
             tutorialsContainer.gameObject.SetActive(true);
             say(tapWord() + " to continue");
             tutorialText = "";
+            showEndRun(true);
         }
         else if (tutorialsContainer.gameObject.activeSelf)
         {
+            showEndRun(false);
             tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
             tutorialsContainer.gameObject.SetActive(false);
         }
@@ -337,6 +339,55 @@ public class InGameUI : MonoBehaviour
         tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, INFO_TOP_Y, 0);
         showSkip();
         say("The ball stops at the flag.\n" + howToTurn() + "!");
+    }
+
+    // Chill's revive: the other choice beside "tap to continue" - end the run here and see the
+    // summary, without going through the pause menu. A button above the tap area, so pressing it
+    // does not also continue.
+    private GameObject endRunButton;
+
+    private void showEndRun(bool show)
+    {
+        if (!show)
+        {
+            if (endRunButton != null)
+                endRunButton.SetActive(false);
+            return;
+        }
+        if (endRunButton == null)
+        {
+            Image back = UiKit.Image(tutorialsContainer, "EndRun", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.85f));
+            back.pixelsPerUnitMultiplier = 1.6f;
+            back.raycastTarget = true; // UiKit's images take no taps by default
+            UiKit.Place(back.rectTransform, new Vector2(0.5f, 0f), new Vector2(0, 330), new Vector2(380, 104));
+            Image edge = UiKit.Image(back.transform, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.7f));
+            edge.pixelsPerUnitMultiplier = back.pixelsPerUnitMultiplier;
+            UiKit.Gradient(edge, UiKit.Cyan, UiKit.Violet, false);
+            UiKit.Stretch(edge.rectTransform);
+            TextMeshProUGUI label = UiKit.Label(tutorialsInfo, back.transform, "Text", "END RUN", 38, UiKit.Text, TextAlignmentOptions.Center);
+            label.enableAutoSizing = false;
+            label.raycastTarget = false;
+            UiKit.Stretch(label.rectTransform);
+            Button b = back.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            b.onClick.AddListener(() =>
+            {
+                SoundManager.Instance?.PlayMenu();
+                PlayerFall fall = FindAnyObjectByType<PlayerFall>();
+                if (fall != null)
+                    fall.endChillRunFromRevive();
+            });
+            back.gameObject.AddComponent<PressDip>();
+            // Its own canvas, sorted above the run's full-screen tap area: that one acts on the
+            // finger going down, so a button under it would never get the press - the run went on.
+            Canvas own = back.gameObject.AddComponent<Canvas>();
+            own.overrideSorting = true;
+            own.sortingOrder = 500;
+            back.gameObject.AddComponent<GraphicRaycaster>();
+            endRunButton = back.gameObject;
+        }
+        endRunButton.transform.SetAsLastSibling();
+        endRunButton.SetActive(true);
     }
 
     // "Skip", top right where the pause button will be: made here from the info text so that it
@@ -819,9 +870,15 @@ public class InGameUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// The ball is being revived - carried up, waiting in the air for Chill's tap, coming down to
+    /// the new path: no power-up can be started until it is rolling again.
+    /// </summary>
+    public static bool Reviving => Utility.spawningAfterChance || PlayerMovement.WaitingForTap;
+
     public void ActivateBolt()
     {
-        if (Utility.boltIsOn || PlayerStats.Instance.getBoltsCount() < 1 || PlayerStats.Instance.isTutorialsOn() || !Utility.gameStarted)
+        if (Utility.boltIsOn || PlayerStats.Instance.getBoltsCount() < 1 || PlayerStats.Instance.isTutorialsOn() || !Utility.gameStarted || Reviving)
             return;
 
         PlayerStats.Instance.subtractBolts();
@@ -832,7 +889,7 @@ public class InGameUI : MonoBehaviour
 
     public void ActivateDoublePoints()
     {
-        if (Utility.doublePointIsOn || PlayerStats.Instance.getDoublePointsCount() < 1 || PlayerStats.Instance.isTutorialsOn() || !Utility.gameStarted)
+        if (Utility.doublePointIsOn || PlayerStats.Instance.getDoublePointsCount() < 1 || PlayerStats.Instance.isTutorialsOn() || !Utility.gameStarted || Reviving)
             return;
 
         PlayerStats.Instance.subtractDoublePoints();
@@ -843,7 +900,8 @@ public class InGameUI : MonoBehaviour
 
     public void ActivateChance()
     {
-        if (Utility.chanceIsOn || PlayerStats.Instance.getChancesCount() < 1 || PlayerStats.Instance.isTutorialsOn())
+        // Chill: always on (the infinity on the dock) - nothing to use, and the tap is not a turn.
+        if (GameMode.T.unlimitedRevives || Utility.chanceIsOn || PlayerStats.Instance.getChancesCount() < 1 || PlayerStats.Instance.isTutorialsOn())
             return;
 
         PlayerStats.Instance.subtractChances();

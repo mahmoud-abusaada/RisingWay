@@ -36,6 +36,16 @@ public class SettingsMenuSkin : MonoBehaviour
         Transform scroll = transform.Find("ScrollView");
         if (scroll != null && scroll.GetComponent<Image>() != null)
             scroll.GetComponent<Image>().color = Color.clear; // the sections are the panels now
+        // The same spacing as Purchase and the Shop: the list's gap under the header, its sections
+        // as wide as Purchase's groups (MenuLayout).
+        if (scroll != null && scroll.GetComponent<ScrollRect>() != null)
+        {
+            ScrollRect list = scroll.GetComponent<ScrollRect>();
+            MenuLayout.ListBelow((RectTransform)scroll, MenuLayout.GROUP_WIDTH, back as RectTransform, title.rectTransform);
+            MenuLayout.NoBox(list);
+            if (list.content != null && list.content.GetComponent<ListGroupsFit>() == null)
+                list.content.gameObject.AddComponent<ListGroupsFit>();
+        }
 
         Transform content = scroll != null ? scroll.Find("Viewport/Content") : null;
         if (content == null)

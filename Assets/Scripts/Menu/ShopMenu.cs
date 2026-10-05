@@ -831,10 +831,10 @@ public class ShopMenu : MonoBehaviour
             ground.localScale = Vector3.one * 1.08f;
             // (No dark band across it from the menu's shade: it draws after the menu,
             // HEADER_FLOOR_QUEUE.) The list's box starts under it: its top edge ran across the floor, a dark band.
-            const float BOX_DOWN = 12f;
-            scrollViewRect.sizeDelta -= new Vector2(0f, BOX_DOWN);
-            scrollViewRect.anchoredPosition -= new Vector2(0f, BOX_DOWN * (1f - scrollViewRect.pivot.y));
         }
+        // The list's box the same gap under the tabs and the selected item's floor as every list
+        // has under what is above it (MenuLayout); it keeps its box and its width.
+        MenuLayout.ListBelow(scrollViewRect, -1f, ballsBtnImage.rectTransform, floorsBtnImage.rectTransform, ground);
 
         // A dot on a tab while it has something the player has never put on.
         ballsDot = UiKit.Dot(ballsBtnImage.transform, "SomethingNew", new Vector2(-8, -8), 28);

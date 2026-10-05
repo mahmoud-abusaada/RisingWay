@@ -137,3 +137,12 @@ stem = np.maximum(np.abs(xs - 64) - 7, np.abs(ys - 86) - 12)
 base = np.maximum(np.abs(xs - 64) - 26, np.abs(ys - 104) - 7) - 2
 trophy = np.minimum(np.minimum(np.minimum(bowl, handles), stem), base)
 save('trophy', fill(trophy * SS))
+
+# Infinity (a lemniscate): the chance in Chill, where every fall is revived.
+t = np.linspace(0, 2 * np.pi, 241)
+lx = 64 + 46 * np.cos(t) / (1 + np.sin(t) ** 2)
+ly = 64 + 46 * np.sin(t) * np.cos(t) / (1 + np.sin(t) ** 2)
+inf_d = np.full(xs.shape, 1e3, np.float32)
+for i in range(len(t) - 1):
+    inf_d = np.minimum(inf_d, segment_sdf(xs, ys, lx[i], ly[i], lx[i + 1], ly[i + 1]))
+save('infinity', fill((inf_d - 9) * SS))

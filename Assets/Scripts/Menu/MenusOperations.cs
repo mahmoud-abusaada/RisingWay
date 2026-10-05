@@ -48,7 +48,6 @@ public class MenusOperations : MonoBehaviour
             menusController.hideStackMenus();
             menusController.showAndAddMenuToStack(Menus.MainMenu);
         }
-        ambientEffectsController.setNightSkyColor();
         ambientEffectsController.onReplay();
     }
 
@@ -61,8 +60,6 @@ public class MenusOperations : MonoBehaviour
         GameMode.BeginRun(); // the run plays the mode chosen now, whatever happens in the menus
         menusController.hideStackMenus();
         menusController.showAndAddMenuToStack(Menus.InGameUI);
-        if (!PlayerStats.Instance.isStayInSpaceOn())
-            ambientEffectsController.setDaySkyColor();
         ambientEffectsController.onGameStarted();
         playerStats.addTimesPlayed();
         GameAnalytics.RunStarted(playerStats.getTimesPlayed(), playerStats.isTutorialsOn(), playerStats.getGamePlayMode().ToString());

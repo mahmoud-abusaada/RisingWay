@@ -138,6 +138,12 @@ public class StoreCapture : MonoBehaviour
         if (int.TryParse(Arg("-shotFloor") ?? "", out floor)) { materials.setSelectedFloorMaterial(floor); FindAnyObjectByType<PartsPool>().refreshMaterials(); }
 
         // -shotMenu: one picture of the main menu's ball first (without the UI, as always).
+        // -shotMode: the run plays that mode, with or without a menu shot.
+        if (System.Enum.TryParse(Arg("-shotMode") ?? "", out RunMode runMode))
+        {
+            GameMode.IgnoreLocks = Arg("-shotModeLocked") == null;
+            stats.setRunMode(runMode);
+        }
         if (Arg("-shotMenu") != null)
         {
             for (int i = 0; i < 60; i++)

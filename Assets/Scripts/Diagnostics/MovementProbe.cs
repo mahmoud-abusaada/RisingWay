@@ -278,6 +278,62 @@ public class MovementProbe : MonoBehaviour
         return d is System.Collections.ICollection c && c.Count > 0 && turnErrors.Count > 0;
     }
 
+    // -probeEndRun: at Chill's revive, press the End run button as a finger would - what the
+    // event system finds at that point, top first, gets the press.
+    private void PressEndRun()
+    {
+        GameObject button = GameObject.Find("EndRun");
+        UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
+        if (button == null || events == null)
+        {
+            Debug.LogWarning(TAG + "END RUN: no button (" + (button != null) + ") or no event system (" + (events != null) + ")");
+            return;
+        }
+        Canvas canvas = button.GetComponentInParent<Canvas>();
+        Camera eventCam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        Vector2 at = RectTransformUtility.WorldToScreenPoint(eventCam, button.transform.position);
+        UnityEngine.EventSystems.PointerEventData pointer = new UnityEngine.EventSystems.PointerEventData(events) { position = at, button = UnityEngine.EventSystems.PointerEventData.InputButton.Left };
+        List<UnityEngine.EventSystems.RaycastResult> results = new List<UnityEngine.EventSystems.RaycastResult>();
+        events.RaycastAll(pointer, results);
+        Debug.Log(TAG + "END RUN: at " + at + " (canvas " + (canvas != null ? canvas.name + " order " + canvas.sortingOrder + " mode " + canvas.renderMode + " cam " + (eventCam != null ? eventCam.name : "none") : "none") + "), hits: " + results.Count);
+        {
+            UnityEngine.UI.Image img = button.GetComponent<UnityEngine.UI.Image>();
+            UnityEngine.UI.GraphicRaycaster gr = button.GetComponent<UnityEngine.UI.GraphicRaycaster>();
+            var reg = UnityEngine.UI.GraphicRegistry.GetRaycastableGraphicsForCanvas(canvas);
+            Debug.Log(TAG + "END RUN: image depth " + img.depth + " cull " + img.canvasRenderer.cull + " raycastTarget " + img.raycastTarget +
+                      " alpha " + img.color.a + " canvas enabled " + canvas.enabled + " raycaster " + (gr != null && gr.isActiveAndEnabled) +
+                      " registered " + (reg != null ? reg.Count : -1) + " contains " + RectTransformUtility.RectangleContainsScreenPoint(img.rectTransform, at, eventCam) +
+                      " graphic canvas " + (img.canvas != null ? img.canvas.name : "none") + " groups:");
+            for (Transform t = button.transform; t != null; t = t.parent)
+                foreach (CanvasGroup g in t.GetComponents<CanvasGroup>())
+                    Debug.Log(TAG + "END RUN:   group on " + t.name + " alpha " + g.alpha + " blocks " + g.blocksRaycasts + " interactable " + g.interactable + " ignoreParent " + g.ignoreParentGroups);
+        }
+        foreach (UnityEngine.EventSystems.RaycastResult r in results)
+            Debug.Log(TAG + "END RUN:   " + r.gameObject.name + " (" + r.module.GetType().Name + " on " + r.module.name + ", depth " + r.depth + ", order " + r.sortingOrder + ")");
+        if (results.Count == 0)
+            return;
+        GameObject top = results[0].gameObject;
+        pointer.pointerCurrentRaycast = results[0];
+        pointer.pointerPressRaycast = results[0];
+        GameObject down = UnityEngine.EventSystems.ExecuteEvents.ExecuteHierarchy(top, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
+        GameObject click = UnityEngine.EventSystems.ExecuteEvents.GetEventHandler<UnityEngine.EventSystems.IPointerClickHandler>(top);
+        UnityEngine.EventSystems.ExecuteEvents.ExecuteHierarchy(top, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerUpHandler);
+        if (click != null)
+            UnityEngine.EventSystems.ExecuteEvents.Execute(click, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+        StartCoroutine(AfterEndRun());
+        Debug.Log(TAG + "END RUN: pressed " + top.name + " (down on " + (down != null ? down.name : "nothing") + ", click on " + (click != null ? click.name : "nothing") + "); waiting now " + PlayerMovement.WaitingForTap + ", game started " + Utility.gameStarted);
+    }
+
+    private IEnumerator AfterEndRun()
+    {
+        yield return new WaitForSecondsRealtime(2f);
+        GameOverMenu over = FindAnyObjectByType<GameOverMenu>(FindObjectsInactive.Include);
+        CanvasGroup g = over != null ? over.GetComponent<CanvasGroup>() : null;
+        Debug.Log(TAG + "END RUN: 2 s later - game over menu active " + (over != null && over.gameObject.activeInHierarchy) +
+                  " alpha " + (g != null ? g.alpha : -1f) + ", fading in " + UIFader.isFadingIn + ", game started " + Utility.gameStarted + ", waiting " + PlayerMovement.WaitingForTap);
+        Finish("end run pressed");
+    }
+
     private bool ReviveStep()
     {
         if (reviveUnderway)
@@ -293,6 +349,11 @@ public class MovementProbe : MonoBehaviour
                 else if (Time.unscaledTime - waitingSince > 1f)
                 {
                     waitingSince = -1f;
+                    if (Arg("-probeEndRun") != null)
+                    {
+                        PressEndRun();
+                        return true;
+                    }
                     Debug.Log(TAG + "REVIVE: Chill - tapping to continue");
                     player.continueAfterChillRevive();
                 }
