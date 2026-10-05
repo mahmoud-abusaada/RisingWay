@@ -78,7 +78,9 @@ public class ReviveAdController : MonoBehaviour
     /// <summary>
     /// Shows the ad.
     /// </summary>
-    public void ShowAd(Action doOnFail)
+    /// <param name="onReward">What the reward is: a revive unless given (Chill's end of run: its
+    /// diamonds doubled - Chill has no revive ad, so it shares this ad unit).</param>
+    public void ShowAd(Action doOnFail, Action onReward = null)
     {
         this.doOnFail = doOnFail;
         if (_rewardedAd != null && _rewardedAd.CanShowAd())
@@ -89,7 +91,10 @@ public class ReviveAdController : MonoBehaviour
                 Debug.Log(String.Format("Rewarded ad granted a reward: {0} {1}",
                                         reward.Amount,
                                         reward.Type));
-                GetReviveMenu().RevivePlayer();
+                if (onReward != null)
+                    onReward();
+                else
+                    GetReviveMenu().RevivePlayer();
                 // P2-02: must clear the FIELD, not the parameter. The parameter of the same
                 // name shadows it, so "doOnFail = null" only nulled the captured local while
                 // this.doOnFail stayed set. OnAdFullScreenContentClosed then invoked the field,

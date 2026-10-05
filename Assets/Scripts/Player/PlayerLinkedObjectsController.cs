@@ -103,6 +103,15 @@ public class PlayerLinkedObjectsController : MonoBehaviour
         spawningEffect.Play();
     }
 
+    /// <summary>Chill's revive: the effect goes round and round while the ball waits for a tap.</summary>
+    public void SetSpawningEffectLooping(bool looping)
+    {
+        ParticleSystem.MainModule main = spawningEffect.main;
+        main.loop = looping;
+        if (looping)
+            PlaySpawningEffect();
+    }
+
     public void PlayDoublePointsAmbient()
     {
         // doublePointsAmbient.gameObject.SetActive(true);

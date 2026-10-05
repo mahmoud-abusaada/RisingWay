@@ -83,13 +83,14 @@ public class PlayerMovement : MonoBehaviour
     private Transform pendingAutoTurnPart;
     // How far before the centre of pendingAutoTurnPart the ball turns: 0 for the game's own turns.
     private float pendingTurnLead;
-    // Early-tap grace (a trial - set EARLY_TAP_SECONDS to 0 to switch it off). A tap this long
+    // Early-tap grace (EarlyTapSeconds; 0 switches it off - Insane). A tap this long
     // before the ball reaches a turn part used to turn it there and then, off the track; at top
     // speed that is a tap 20 ms too soon. Now such a tap is kept, and the ball turns as soon as it
     // is on the part, EARLY_TAP_INSET past its near edge - as does a tap on the part's first
     // EARLY_TAP_INSET, which used to turn the ball onto the very edge of the next leg. In seconds
     // the player feels (real time), never quite as far ahead as one part is long (turnPartJustAhead).
-    private const float EARLY_TAP_SECONDS = 0.15f;
+    // How long it is depends on the mode (GameMode: Chill longer, Insane none).
+    public static float EarlyTapSeconds => GameMode.T.earlyTapSeconds;
     private const float EARLY_TAP_MAX_DISTANCE = 2.4f;
     private const float EARLY_TAP_INSET = 0.3f;
     private const float HALF_PART = 1.25f;
@@ -255,7 +256,7 @@ public class PlayerMovement : MonoBehaviour
                     inGameUi.startTutorial();
                 }
                 else
-                    startSpeed = Utility.Constants.START_PLAYER_SPEED;
+                    startSpeed = GameMode.T.startSpeed;
                 speed = startSpeed;
 
                 // setNormalTrail();
@@ -295,6 +296,63 @@ public class PlayerMovement : MonoBehaviour
                 transform.position = cameraController.transform.position;
             });
         });
+    }
+
+    /// <summary>Chill: the revived ball is waiting in the air for a tap (continueAfterChillRevive).</summary>
+    public static bool WaitingForTap { get; private set; }
+
+    /// <summary>
+    /// Chill's revive after a fall: like a chance's, but it stops halfway. The ball is carried back
+    /// up to where a chance starts its new path and waits there, its revive effect going round,
+    /// until the player taps; only then does the path come and the ball drop onto it. Every fall,
+    /// as often as it takes. (The player chose to wait, so this is not the pause a normal revive
+    /// must never make.)
+    /// </summary>
+    public void respawnForChill()
+    {
+        stopInterpolation();
+        pendingAutoTurnPart = null;
+        groundPart = partTurnedOn = null;
+        drivenOnTrack = false;
+        slopeFactor = 1f;
+        Utility.spawningAfterChance = true;
+        myRB.isKinematic = false;
+        cameraController.PlayChanceTakenEffect();
+        Vector3 previewPositionWithDirection = Quaternion.AngleAxis((int)direction, Vector3.up) * previewPosition;
+        moveToPosition.MoveTransform(transform.position, cameraController.transform.position + previewPositionWithDirection, 3f, false, () =>
+        {
+            WaitingForTap = true;
+            if (inGameUi == null)
+                inGameUi = FindObjectOfType<InGameUI>();
+            inGameUi.showContinuePrompt(true);
+        });
+    }
+
+    /// <summary>The tap Chill's revive waits for: the new path comes and the ball goes down to it.</summary>
+    public void continueAfterChillRevive()
+    {
+        if (!WaitingForTap)
+            return;
+        WaitingForTap = false;
+        if (inGameUi == null)
+            inGameUi = FindObjectOfType<InGameUI>();
+        inGameUi.showContinuePrompt(false);
+        GetComponent<PlayerLinkedObjectsController>().SetSpawningEffectLooping(false);
+        SoundManager.Instance.removeFilter();
+        pathMaker.startSpawningPathAfterChance(new Vector3(cameraController.transform.position.x, cameraController.transform.position.y - 0.6f, cameraController.transform.position.z), direction);
+        moveToPosition.MoveTransform(transform.position, cameraController.transform.position, 1, true, () =>
+        {
+            Utility.camFollowPlayer = true;
+            Utility.spawningAfterChance = false;
+            myRB.useGravity = true;
+            transform.position = cameraController.transform.position;
+        });
+    }
+
+    /// <summary>A run left (Home, Restart) while the ball was waiting: no tap is owed any more.</summary>
+    public static void ClearWaitingForTap()
+    {
+        WaitingForTap = false;
     }
 
     /// <summary>
@@ -531,14 +589,14 @@ public class PlayerMovement : MonoBehaviour
         pendingTurnLead = 0f;
     }
 
-    // The turn part the ball will be on within EARLY_TAP_SECONDS, if it is coming to one along the
+    // The turn part the ball will be on within EarlyTapSeconds, if it is coming to one along the
     // path. Parts are HALF_PART each way and the look-ahead no longer than a part, so the point
     // that far ahead is on that part whenever its near edge is within reach.
     private Transform turnPartJustAhead()
     {
-        if (EARLY_TAP_SECONDS <= 0f || !drivenOnTrack || Utility.stoppedForTutorials)
+        if (EarlyTapSeconds <= 0f || !drivenOnTrack || Utility.stoppedForTutorials)
             return null;
-        float reach = Mathf.Min(speed * Time.timeScale * EARLY_TAP_SECONDS, EARLY_TAP_MAX_DISTANCE);
+        float reach = Mathf.Min(speed * Time.timeScale * EarlyTapSeconds, EARLY_TAP_MAX_DISTANCE);
         Vector3 from = myRB.position + directionVector(direction) * reach + Vector3.up * 1.5f;
         RaycastHit hit;
         if (!Physics.Raycast(from, Vector3.down, out hit, 3f, groundMask, QueryTriggerInteraction.Ignore))
@@ -553,7 +611,7 @@ public class PlayerMovement : MonoBehaviour
     // On the first EARLY_TAP_INSET of a turn part it is coming onto along the path.
     private bool justOnto(Transform turnPart)
     {
-        if (EARLY_TAP_SECONDS <= 0f || !drivenOnTrack || direction != pathDirectionOf(turnPart))
+        if (EarlyTapSeconds <= 0f || !drivenOnTrack || direction != pathDirectionOf(turnPart))
             return false;
         Vector3 forward = directionVector(direction);
         Vector3 toCentre = turnPart.position - myRB.position;

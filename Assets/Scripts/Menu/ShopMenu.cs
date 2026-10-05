@@ -58,6 +58,8 @@ public class ShopMenu : MonoBehaviour
     private readonly Dictionary<Transform, int> itemFloorId = new Dictionary<Transform, int>();
     private GameObject ballsDot, floorsDot;
     private Image boxShade;
+    private Image topShade;
+    private static readonly Vector3[] corners = new Vector3[4];
     private Material headerFloorMaterial;
     private float boxShadeTarget;
     private bool shouldUpdateList = false;
@@ -838,21 +840,43 @@ public class ShopMenu : MonoBehaviour
         ballsDot = UiKit.Dot(ballsBtnImage.transform, "SomethingNew", new Vector2(-8, -8), 28);
         floorsDot = UiKit.Dot(floorsBtnImage.transform, "SomethingNew", new Vector2(-8, -8), 28);
 
-        // The menu's shade in two: the dark foot behind the mystery box button fades out with the
-        // button (when the boxes run out), instead of darkening the list for nothing.
+        // The menu's shade in two. The top one darkens only the header (back, title, tabs, the
+        // selected item): it ends where the list's box begins (fitTopShade), so the balls and
+        // floors in the list show their real colours. The dark foot behind the mystery box button
+        // fades out with the button when the boxes run out.
         Transform shade = transform.Find("Shade");
         if (shade != null && boxShade == null)
         {
-            Image top = shade.GetComponent<Image>();
-            UiKit.Style(top, "shade_top", top.color);
-            boxShade = UiKit.Image(transform, "BoxShade", "shade_bottom", top.color);
+            topShade = shade.GetComponent<Image>();
+            UiKit.Style(topShade, "shade_top", topShade.color);
+            boxShade = UiKit.Image(transform, "BoxShade", "shade_bottom", topShade.color);
             UiKit.Stretch(boxShade.rectTransform);
             boxShade.transform.SetSiblingIndex(shade.GetSiblingIndex() + 1);
         }
     }
 
+    // The top shade from the top of the menu down to the list's box (laid out for the screen
+    // first, so it is done each frame - two rects, nothing to speak of).
+    private void fitTopShade()
+    {
+        if (topShade == null || scrollViewRect == null)
+            return;
+        RectTransform menu = (RectTransform)transform;
+        scrollViewRect.GetWorldCorners(corners); // [1] is the top left
+        float height = menu.rect.yMax - menu.InverseTransformPoint(corners[1]).y;
+        if (height <= 0f)
+            return;
+        RectTransform r = topShade.rectTransform;
+        r.anchorMin = new Vector2(0f, 1f);
+        r.anchorMax = Vector2.one;
+        r.pivot = new Vector2(0.5f, 1f);
+        r.anchoredPosition = Vector2.zero;
+        r.sizeDelta = new Vector2(0f, height);
+    }
+
     void Update()
     {
+        fitTopShade();
         if (boxShade != null && !Mathf.Approximately(boxShade.color.a, boxShadeTarget))
             boxShade.color = UiKit.WithAlpha(boxShade.color, Mathf.MoveTowards(boxShade.color.a, boxShadeTarget, Time.unscaledDeltaTime / 0.45f));
     }

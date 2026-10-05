@@ -154,6 +154,17 @@ public class StoreCapture : MonoBehaviour
                 stats.subtractDiamonds(stats.getDiamondsCount());
                 stats.addDiamonds(int.Parse(Arg("-shotDiamonds")));
             }
+            // -shotMode Chill|Standard|Insane [-shotModeLocked]: the main menu's mode picker on that
+            // mode (Insane shown open unless -shotModeLocked).
+            if (System.Enum.TryParse(Arg("-shotMode") ?? "", out RunMode shotMode))
+            {
+                GameMode.IgnoreLocks = Arg("-shotModeLocked") == null;
+                MainMenuSkin menuSkin = FindAnyObjectByType<MainMenuSkin>();
+                if (menuSkin != null && menuSkin.Picker != null)
+                    menuSkin.Picker.Select(shotMode);
+                for (int i = 0; i < 30; i++)
+                    yield return null;
+            }
             // -shotDumpNames A,B: those canvases' objects in the log too (the dialogs).
             if (Arg("-shotDumpNames") != null)
                 foreach (string n in Arg("-shotDumpNames").Split(','))

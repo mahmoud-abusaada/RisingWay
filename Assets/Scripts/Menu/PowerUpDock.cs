@@ -149,11 +149,21 @@ public class PowerUpDock : MonoBehaviour
                 case PickUpType.Bolt:
                     owned = stats.getBoltsCount();
                     on = Utility.boltIsOn;
+                    if (on && pickUps != null)
+                        left = pickUps.boltLeft();
                     break;
                 default:
                     owned = stats.getChancesCount();
                     on = Utility.chanceIsOn;
                     break;
+            }
+            // No chance in Chill: every fall there is revived anyway, so one would be thrown away.
+            bool hidden = slot.type == PickUpType.Chance && GameMode.T.unlimitedRevives;
+            slot.group.blocksRaycasts = !hidden;
+            if (hidden)
+            {
+                slot.group.alpha = 0f;
+                continue;
             }
             slot.group.alpha = owned > 0 || on ? 1f : 0.38f;
             centre(slot);

@@ -18,7 +18,9 @@ public class InputManager : MonoBehaviour
 
     void Update()
     {
-        if (userCanControl())
+        if (PlayerMovement.WaitingForTap && (Input.GetButtonDown("autoTurn") || Input.GetButtonDown("turnLeft") || Input.GetButtonDown("turnRight")))
+            playerMovement.continueAfterChillRevive(); // Chill's revive waits for this tap
+        else if (userCanControl())
         {
             if (Input.GetButtonDown("turnRight"))
             {

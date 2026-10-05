@@ -141,15 +141,57 @@ public sealed class PlayerStats : ScriptableObject
 
     // ================================================================== progress
 
+    /// <summary>The best of the mode being played (GameMode.Current).</summary>
     public int getHighScore()
     {
-        return Data.highScore;
+        return getHighScore(GameMode.Current);
     }
     public void setHighScore(int score)
     {
-        Data.highScore = score;
+        setHighScore(GameMode.Current, score);
+    }
+
+    /// <summary>A mode's best. Chill keeps none: its stat is the longest climb without falling.</summary>
+    public int getHighScore(RunMode mode)
+    {
+        return mode == RunMode.Insane ? Data.insaneHighScore : mode == RunMode.Chill ? 0 : Data.highScore;
+    }
+    public void setHighScore(RunMode mode, int score)
+    {
+        if (mode == RunMode.Insane)
+            Data.insaneHighScore = score;
+        else if (mode == RunMode.Standard)
+            Data.highScore = score;
+        else
+            return;
         SaveSystem.Save();
     }
+
+    public int getChillLongestStreak() => Data.chillLongestStreak;
+    public void setChillLongestStreak(int value)
+    {
+        Data.chillLongestStreak = Mathf.Max(0, value);
+        SaveSystem.Save();
+    }
+
+    /// <summary>The mode picked on the main menu (parsed defensively, like the control scheme).</summary>
+    public RunMode getRunMode()
+    {
+        return System.Enum.TryParse(Data.runMode, out RunMode mode) && System.Enum.IsDefined(typeof(RunMode), mode) ? mode : RunMode.Standard;
+    }
+    public void setRunMode(RunMode mode)
+    {
+        Data.runMode = mode.ToString();
+        SaveSystem.Save();
+    }
+
+    // The one-time mode suggestions (GameOverMenu).
+    public int getShortRunsInARow() => Data.shortRunsInARow;
+    public void setShortRunsInARow(int runs) { Data.shortRunsInARow = Mathf.Max(0, runs); SaveSystem.Save(); }
+    public bool wasChillSuggested() => Data.chillSuggested;
+    public void markChillSuggested() { Data.chillSuggested = true; SaveSystem.Save(); }
+    public bool wasInsaneUnlockShown() => Data.insaneUnlockShown;
+    public void markInsaneUnlockShown() { Data.insaneUnlockShown = true; SaveSystem.Save(); }
 
     public int getTimesPlayed()
     {
@@ -331,7 +373,9 @@ public sealed class PlayerStats : ScriptableObject
 
     public bool isStayInSpaceOn()
     {
-        return PlayerPrefs.GetInt(Utility.Constants.KEY_STAY_IN_SPACE_ON, 1) == 1;
+        // Off unless the player turned it on: each mode has its own sky (day into space as you
+        // climb, Chill's day and night), which "stay in space" replaces with space all the way.
+        return PlayerPrefs.GetInt(Utility.Constants.KEY_STAY_IN_SPACE_ON, 0) == 1;
     }
     public void setStayInSpaceState(bool on)
     {

@@ -161,11 +161,15 @@ public class SoundManager : MonoBehaviour
             musicSource.Play();
         }
 
-        if (ambientFilter != null && ambientFilter.cutoffFrequency != targetFilterValue)
+        if (filterValue != targetFilterValue)
         {
-            ambientFilter.cutoffFrequency = Mathf.Lerp(ambientFilter.cutoffFrequency, targetFilterValue, timeElapsedFilter / 15);
+            filterValue = Mathf.Lerp(filterValue, targetFilterValue, timeElapsedFilter / 15);
             timeElapsedFilter += Time.unscaledDeltaTime;
         }
+        // Chill's sound is warmer: its loop and layers muffled further (ModePicker, the run).
+        modeMuffle = Mathf.MoveTowards(modeMuffle, mode == RunMode.Chill ? 0.3f : 1f, Time.unscaledDeltaTime * 1.6f);
+        if (ambientFilter != null)
+            ambientFilter.cutoffFrequency = Mathf.Max(400f, filterValue * modeMuffle);
         foreach (AudioLowPassFilter filter in layerFilters)
             filter.cutoffFrequency = ambientFilter.cutoffFrequency;
         mixRun();
@@ -192,6 +196,21 @@ public class SoundManager : MonoBehaviour
     }
 
     // Every frame: the menu loop or the run's layers, and how hard the run is going.
+    // The menus' loop a little lower for Chill and a little higher for Insane, as the mode picker
+    // moves between them (ModePicker), and through the run that mode plays.
+    // Each mode's own sound, crossfading as the mode picker moves (ModePicker) and holding through
+    // that mode's run: Chill lower, warmer (muffled) and a little quieter; Insane higher, with the
+    // run's heartbeat pulse already going under the menus' loop.
+    private RunMode mode = RunMode.Standard;
+    private float menuPitch = 1f, modeMuffle = 1f, modeGain = 1f, insanePulse = 0f;
+    private float filterValue = 2000f;
+
+    public void SetMenuMode(RunMode mode)
+    {
+        this.mode = mode;
+        menuPitch = mode == RunMode.Chill ? 0.88f : mode == RunMode.Insane ? 1.1f : 1f;
+    }
+
     private void mixRun()
     {
         if (bedSource == null)
@@ -205,19 +224,26 @@ public class SoundManager : MonoBehaviour
         run = Mathf.MoveTowards(run, inRun ? 1f : 0f, RUN_FADE_PER_SECOND * dt);
         float wanted = 0f;
         if (inRun && player != null)
-            wanted = Utility.boltIsOn ? 1f : Mathf.InverseLerp(Utility.Constants.START_PLAYER_SPEED, Utility.Constants.TOP_PLAYER_SPEED, player.speed);
+            wanted = Utility.boltIsOn ? 1f : Mathf.InverseLerp(GameMode.T.startSpeed, GameMode.T.topSpeed, player.speed);
         intensity = Mathf.MoveTowards(intensity, wanted, INTENSITY_PER_SECOND * dt);
         if (!Utility.gameStarted)
             turnStep = 0; // the next run's turns start from the bottom of the scale
 
-        ambientSource.volume = ambientLevel * (1f - run);
+        // Each mode its own mix (GameMode): Chill keeps some of the menus' calm loop and leaves the
+        // bright shimmer out; Insane pushes the pulse and the pitch further.
+        GameMode.Tuning mode = GameMode.T;
+        modeGain = Mathf.MoveTowards(modeGain, this.mode == RunMode.Chill ? 0.82f : 1f, dt * 0.8f);
+        insanePulse = Mathf.MoveTowards(insanePulse, this.mode == RunMode.Insane ? 0.38f : 0f, dt * 0.8f);
+        ambientSource.volume = ambientLevel * (1f - run * (1f - mode.ambientKeep)) * modeGain;
+        ambientSource.pitch = Mathf.MoveTowards(ambientSource.pitch, Utility.isGamePaused ? 1f : menuPitch, 0.5f * dt);
         bedSource.volume = ambientLevel * run * 0.9f;
-        pulseSource.volume = ambientLevel * run * Mathf.Lerp(0.5f, 1f, intensity);
-        shimmerSource.volume = ambientLevel * run * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 1f, intensity)) * 0.9f;
+        pulseSource.volume = ambientLevel * (run * Mathf.Lerp(0.5f, 1f, intensity) * mode.pulseGain + (1f - run) * insanePulse);
+        shimmerSource.volume = ambientLevel * run * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 1f, intensity)) * 0.9f * mode.shimmerGain;
 
-        float pitch = Mathf.Lerp(1f, RUN_PITCH_AT_TOP_SPEED, intensity);
+        // In the menus the layers (Insane's pulse) follow the menus' loop's pitch, so they agree.
+        float pitch = Mathf.Lerp(1f, mode.runPitchTop, intensity) * Mathf.Lerp(menuPitch, 1f, run);
         if (Utility.boltIsOn)
-            pitch = RUN_PITCH_IN_A_BOLT;
+            pitch = mode.runPitchTop + (RUN_PITCH_IN_A_BOLT - RUN_PITCH_AT_TOP_SPEED);
         runPitch = Mathf.MoveTowards(runPitch, pitch, 0.25f * dt);
         bedSource.pitch = pulseSource.pitch = shimmerSource.pitch = Utility.isGamePaused ? 1f : runPitch;
     }
@@ -229,7 +255,7 @@ public class SoundManager : MonoBehaviour
             return;
         // In tune with the layers, which the run's speed has shifted up.
         turnSource.pitch = Mathf.Pow(2f, TurnScale[turnStep] / 12f) * runPitch;
-        shot(turnSource, turnAudio, 0.6f);
+        shot(turnSource, turnAudio, GameMode.T.pluckVolume); // softer in Chill
         turnStep = (turnStep + 1) % TurnScale.Length;
     }
 

@@ -341,7 +341,7 @@ public class AdmobManager : MonoBehaviour
     /// </summary>
     public const int AD_FREE_RUNS = 10;
 
-    public void ShowInterstitialAd(Action doOnClose)
+    public void ShowInterstitialAd(Action doOnClose, string placement = "game_over")
     {
         int runs = PlayerStats.Instance.getTimesPlayed();
         if (runs <= AD_FREE_RUNS)
@@ -352,7 +352,7 @@ public class AdmobManager : MonoBehaviour
         }
         if (_adsReady && PlayerStats.Instance.isAdEnabled())
         {
-            GameAnalytics.AdShown("interstitial", "game_over");
+            GameAnalytics.AdShown("interstitial", placement);
             interstitialController.ShowAd(doOnClose);
         }
         else
@@ -387,6 +387,18 @@ public class AdmobManager : MonoBehaviour
         }
         else
             doOnFail?.Invoke();
+    }
+
+    /// <summary>Chill's end of run: watch an ad to double the run's diamonds (the revive ad unit).</summary>
+    public void ShowDoubleDiamondsAd(Action onReward, Action onFail)
+    {
+        if (_adsReady)
+        {
+            GameAnalytics.AdShown("rewarded", "double_diamonds");
+            reviveAdController.ShowAd(onFail, onReward);
+        }
+        else
+            onFail?.Invoke();
     }
 
     public bool CanShowReviveAd()

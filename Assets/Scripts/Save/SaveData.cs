@@ -50,8 +50,22 @@ public class SaveData
     public int boxesSinceCosmetic = 0;
 
     // ---------------------------------------------------------------- progress
+    /// <summary>Standard's best (the only mode there was before the modes came in).</summary>
     public int highScore = 0;
     public int timesPlayed = 0;
+
+    // Game modes (GameMode, docs/game-modes-plan.md). Added after schema 1: an older save lacks
+    // them and they start at their defaults, which is right - no migration.
+    /// <summary>The chosen mode, by name (as gamePlayMode is), so reordering the enum is safe.</summary>
+    public string runMode = "Standard";
+    public int insaneHighScore = 0;
+    /// <summary>Chill has no best score: the longest stretch climbed without falling instead.</summary>
+    public int chillLongestStreak = 0;
+    /// <summary>Runs in a row that ended under the Chill suggestion's score, and whether the
+    /// suggestion and the Insane unlock have been shown (they show once).</summary>
+    public int shortRunsInARow = 0;
+    public bool chillSuggested = false;
+    public bool insaneUnlockShown = false;
 
     // ---------------------------------------------------------------- upgrades
     // Levels are 1-based. Caps live in Utility.Constants

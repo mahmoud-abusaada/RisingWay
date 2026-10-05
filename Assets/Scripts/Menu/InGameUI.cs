@@ -247,22 +247,49 @@ public class InGameUI : MonoBehaviour
 
     // In the tutorial PlayerMovement decides what each of these does (tutorialTurn) and reports
     // back through tutorialTurned / tutorialTapIgnored.
+    // Chill's revive waits in the air for a tap: whichever control the player uses, that tap is it.
     public void AutoTurn()
     {
-        if (inputManager.userCanControl())
+        if (PlayerMovement.WaitingForTap)
+            playerMovement.continueAfterChillRevive();
+        else if (inputManager.userCanControl())
             playerMovement.autoTurn();
     }
 
     public void TurnLeft()
     {
-        if (inputManager.userCanControl())
+        if (PlayerMovement.WaitingForTap)
+            playerMovement.continueAfterChillRevive();
+        else if (inputManager.userCanControl())
             playerMovement.manualTurn(true);
     }
 
     public void TurnRight()
     {
-        if (inputManager.userCanControl())
+        if (PlayerMovement.WaitingForTap)
+            playerMovement.continueAfterChillRevive();
+        else if (inputManager.userCanControl())
             playerMovement.manualTurn(false);
+    }
+
+    /// <summary>Chill's revive: "Tap to continue" while the ball waits in the air.</summary>
+    public void showContinuePrompt(bool show)
+    {
+        if (show)
+        {
+            setUpInfo();
+            tutorialsInfo.rectTransform.anchoredPosition3D = new Vector3(0, INFO_HINT_Y, 0);
+            if (tutorialSkip != null)
+                tutorialSkip.SetActive(false);
+            tutorialsContainer.gameObject.SetActive(true);
+            say(tapWord() + " to continue");
+            tutorialText = "";
+        }
+        else if (tutorialsContainer.gameObject.activeSelf)
+        {
+            tutorialsInfo.GetComponent<Animation>().Play("HideTutorialInfo");
+            tutorialsContainer.gameObject.SetActive(false);
+        }
     }
 
     // The line of text the tutorial and the hints share: up to two lines, shrinking to fit.
@@ -537,7 +564,12 @@ public class InGameUI : MonoBehaviour
     {
         int best = PlayerStats.Instance.getHighScore();
         int score = scoreManager != null ? scoreManager.getScore() : 0;
-        if (best <= 0)
+        if (!GameMode.T.hasBestScore)
+        {
+            bestText.text = "CHILL"; // no best to chase in Chill
+            bestText.color = UiKit.TextDim;
+        }
+        else if (best <= 0)
             bestText.text = "";
         else if (score > best)
         {

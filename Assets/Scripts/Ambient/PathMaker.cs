@@ -37,6 +37,10 @@ public class PathMaker : MonoBehaviour
     private int turnNumber = 0;
     private int slidesCount = 0;
     private bool isStoppingBolt = false;
+    /// <summary>Every part this path maker has put down - the bolt's ring counts by it (PickUpsManager.boltLeft).</summary>
+    public int PartsSpawned { get; private set; }
+    /// <summary>PartsSpawned when the straight that ends the bolt went down, -1 until then.</summary>
+    public int BoltEndSpawnedAt { get; private set; } = -1;
     private Transform lastSpawnedPart = null;
     private Vector3 lastSpawnedPartPosition = new Vector3(0, 0, 0);
     private Transform nextPart = null;
@@ -284,7 +288,10 @@ public class PathMaker : MonoBehaviour
         {
             spawnPart(Parts.LandStraight);
             if (spawnedStraightForBoltCount == 0)
+            {
                 nextPart.name = Utility.Constants.BOLT_STRAIGHT_PART_NAME;
+                BoltEndSpawnedAt = PartsSpawned;
+            }
             spawnedStraightForBoltCount++;
         }
         else
@@ -457,11 +464,13 @@ public class PathMaker : MonoBehaviour
                 numberOfPartsWithoutPickups--;
                 if (numberOfPartsWithoutPickups == pickupIndex)
                 {
-                    if (Random.Range(0, 30) == 1)
+                    // The mode sets how often a box comes (Chill: half as often) and whether the
+                    // chance does at all (not in Chill, where every fall is revived anyway).
+                    if (Random.Range(0, GameMode.T.boxOneIn) == 1)
                     {
                         pickUpType = PickUpType.MysteryBox;
                     }
-                    else if (Random.Range(0, 15) == 1 && spawnedChances < maxNumberOfChances && !Utility.chanceIsOn)
+                    else if (GameMode.T.chanceSpawns && Random.Range(0, 15) == 1 && spawnedChances < maxNumberOfChances && !Utility.chanceIsOn)
                     {
                         pickUpType = PickUpType.Chance;
                         spawnedChances++;
@@ -480,7 +489,7 @@ public class PathMaker : MonoBehaviour
             }
             else
             {
-                diamondsToSpawn = Random.Range(7, 15);
+                diamondsToSpawn = Random.Range(GameMode.T.diamondRunMin, GameMode.T.diamondRunMax); // Chill: about half
                 numberOfPartsWithoutPickups = Random.Range(7, 17);
                 pickupIndex = numberOfPartsWithoutPickups / 2;
             }
@@ -532,6 +541,7 @@ public class PathMaker : MonoBehaviour
         // setPartMaterial(part.Find("PartStartBlock"));
         // setPartMaterial(part.Find("PartEndBlock"));
 
+        PartsSpawned++;
         if (Utility.boltIsOn)
         {
             spawnedPartsWithBolt++;
@@ -1044,6 +1054,7 @@ public class PathMaker : MonoBehaviour
         spawnedStraightForBoltCount = 0;
         isStoppingBolt = false;
         spawnedBolts = 0;
+        BoltEndSpawnedAt = -1;
     }
 
     public void doublePointsIsOver()

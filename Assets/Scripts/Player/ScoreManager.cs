@@ -14,6 +14,9 @@ public class ScoreManager : MonoBehaviour
     private int score = 0;
     private int diamondsCollected = 0;
     private float currentPlayerSpeed = Utility.Constants.START_PLAYER_SPEED;
+    // Chill: the climb since the last fall, and the longest one this run (its stat in place of a best).
+    private int streakStartScore = 0;
+    private int longestStreak = 0;
     private int pathUpdateScore1 = 110;
     private int pathUpdateScore2 = 200;
     private int pathUpdateScore3 = 300;
@@ -33,8 +36,10 @@ public class ScoreManager : MonoBehaviour
         playerHeight = 0;
         score = 0;
         diamondsCollected = 0;
+        streakStartScore = 0;
+        longestStreak = 0;
         inGameUI.updateScoreText();
-        currentPlayerSpeed = Utility.Constants.START_PLAYER_SPEED;
+        currentPlayerSpeed = GameMode.T.startSpeed;
     }
 
     public int getDiamondsCollected()
@@ -82,10 +87,26 @@ public class ScoreManager : MonoBehaviour
         inGameUI.makeScoreYellow();
     }
 
+    /// <summary>The ball fell (Chill, where it is lifted back): the climb without a fall starts over.</summary>
+    public void fell()
+    {
+        longestStreak = Mathf.Max(longestStreak, score - streakStartScore);
+        streakStartScore = score;
+    }
+
+    /// <summary>Chill's stat: the longest climb this run without falling (the current one counts).</summary>
+    public int getLongestStreak()
+    {
+        return Mathf.Max(longestStreak, score - streakStartScore);
+    }
+
     public void diamondPicked()
     {
-        playerStats.addDiamonds();
-        diamondsCollected++;
+        // Insane pays double (GameMode.diamondValue).
+        int value = GameMode.T.diamondValue;
+        for (int i = 0; i < value; i++)
+            playerStats.addDiamonds();
+        diamondsCollected += value;
         addDiamondScore();
     }
 
@@ -112,9 +133,7 @@ public class ScoreManager : MonoBehaviour
 
     private void handleDifficallity()
     {
-        currentPlayerSpeed = (score / 600f * (Utility.Constants.TOP_PLAYER_SPEED - Utility.Constants.START_PLAYER_SPEED)) + Utility.Constants.START_PLAYER_SPEED;
-        if (currentPlayerSpeed > Utility.Constants.TOP_PLAYER_SPEED)
-            currentPlayerSpeed = Utility.Constants.TOP_PLAYER_SPEED;
+        currentPlayerSpeed = GameMode.SpeedAt(score); // start to top speed over the mode's ramp
 
         if (!Utility.boltIsOn && !PlayerStats.Instance.isTutorialsOn())
             playerMovement.speed = currentPlayerSpeed;
@@ -125,11 +144,11 @@ public class ScoreManager : MonoBehaviour
 
     public int patternTierFor(int score)
     {
-        if (score > pathUpdateScore5) return 5;
-        if (score > pathUpdateScore4) return 4;
-        if (score > pathUpdateScore3) return 3;
-        if (score > pathUpdateScore2) return 2;
-        if (score > pathUpdateScore1) return 1;
-        return 0;
+        // Each mode opens tiers at its own scores (Insane at half) and never past its last one,
+        // and none below the one it starts at.
+        GameMode.Tuning t = GameMode.T;
+        float s = score / t.patternScoreScale;
+        int tier = s > pathUpdateScore5 ? 5 : s > pathUpdateScore4 ? 4 : s > pathUpdateScore3 ? 3 : s > pathUpdateScore2 ? 2 : s > pathUpdateScore1 ? 1 : 0;
+        return Mathf.Clamp(tier, t.startPatternTier, t.maxPatternTier);
     }
 }

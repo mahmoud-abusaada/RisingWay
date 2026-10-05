@@ -11,6 +11,19 @@ using UnityEngine.UI;
 public class MainMenuSkin : MonoBehaviour
 {
     private TextMeshProUGUI best, diamonds;
+    private ModePicker picker;
+    private RunMode shownMode = RunMode.Standard;
+    private bool modeShown;
+
+    public ModePicker Picker => picker;
+
+    /// <summary>The mode picker moved: the scores row shows that mode's best.</summary>
+    public void ShowMode(RunMode mode)
+    {
+        shownMode = mode;
+        modeShown = true;
+        Refresh();
+    }
     private GameObject upgradeDot, shopDot;
 
     public void Build(TMP_Text title, RectTransform tapToPlay, RectTransform buttons, RectTransform social)
@@ -21,13 +34,25 @@ public class MainMenuSkin : MonoBehaviour
         row.pivot = new Vector2(0.5f, 0.5f);
         row.anchoredPosition = new Vector2(0, -392);
         row.sizeDelta = new Vector2(640, 64);
-        best = chip(title, row, "Best", new Vector2(-160, 0), 290, null);
+        best = chip(title, row, "Best", new Vector2(-160, 0), 290, Leaderboards.Configured() ? "trophy" : null);
+        // Once the leaderboards are set up, the best chip opens the board of the mode on screen.
+        if (Leaderboards.Configured())
+        {
+            Image chipBack = best.transform.parent.GetComponent<Image>();
+            chipBack.raycastTarget = true;
+            Button open = chipBack.gameObject.AddComponent<Button>();
+            open.transition = Selectable.Transition.None;
+            open.onClick.AddListener(() => Leaderboards.Show(modeShown ? shownMode : PlayerStats.Instance.getRunMode()));
+            chipBack.gameObject.AddComponent<PressDip>();
+        }
         diamonds = chip(title, row, "Diamonds", new Vector2(160, 0), 290, "gem");
 
-        // "Tap to play" a little lower and larger, out from under the scores.
+        // The mode picker under the scores (ModePicker), "tap to play" under it, a little larger.
+        if (tapToPlay != null && tapToPlay.parent is RectTransform tapArea)
+            picker = ModePicker.Build(title, (RectTransform)transform, tapArea, this);
         if (tapToPlay != null)
         {
-            tapToPlay.anchoredPosition = new Vector2(tapToPlay.anchoredPosition.x, -540);
+            tapToPlay.anchoredPosition = new Vector2(tapToPlay.anchoredPosition.x, -790);
             TMP_Text tap = tapToPlay.GetComponent<TMP_Text>();
             if (tap != null)
                 tap.fontSize *= 1.15f;
@@ -165,9 +190,13 @@ public class MainMenuSkin : MonoBehaviour
         PlayerStats stats = PlayerStats.Instance;
         if (stats == null || best == null)
             return;
-        int high = stats.getHighScore();
-        // "BEST" a little smaller than the number and raised to sit on its middle, not its foot.
-        best.text = "<size=88%><voffset=0.06em><color=" + UiKit.HexOf(UiKit.TextDim) + ">BEST</color></voffset></size>  " + high;
+        // The best of the mode on screen; Chill's longest climb without falling in its place.
+        RunMode mode = modeShown ? shownMode : stats.getRunMode();
+        bool chill = mode == RunMode.Chill;
+        int high = chill ? stats.getChillLongestStreak() : stats.getHighScore(mode);
+        // The word a little smaller than the number and raised to sit on its middle, not its foot.
+        best.text = "<size=88%><voffset=0.06em><color=" + UiKit.HexOf(UiKit.TextDim) + ">" + (chill ? "LONGEST" : "BEST") +
+                    "</color></voffset></size>  " + high;
         best.transform.parent.gameObject.SetActive(high > 0);
         // On its own in the middle until there is a best score beside it.
         ((RectTransform)diamonds.transform.parent).anchoredPosition = new Vector2(high > 0 ? 160 : 0, 0);

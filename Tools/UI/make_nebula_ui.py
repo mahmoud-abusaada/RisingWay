@@ -101,3 +101,39 @@ for pts, v in facets:
     dr.polygon(P(pts), fill=(v, 255))
 a = np.asarray(gem, np.float32) / 255.0
 save('gem', a[..., 1], a[..., 0])
+
+# A chevron pointing right (flipped in code for left): the mode picker's arrows.
+C = 128 * SS
+ys, xs = np.mgrid[0:C, 0:C].astype(np.float32) / SS
+
+
+def segment_sdf(px, py, ax, ay, bx, by):
+    abx, aby = bx - ax, by - ay
+    t = np.clip(((px - ax) * abx + (py - ay) * aby) / (abx * abx + aby * aby), 0, 1)
+    return np.sqrt((px - ax - t * abx) ** 2 + (py - ay - t * aby) ** 2)
+
+
+arms = np.minimum(segment_sdf(xs, ys, 44, 22, 86, 64), segment_sdf(xs, ys, 86, 64, 44, 106))
+save('chevron', fill((arms - 11) * SS))
+
+# A padlock (body and shackle): a mode not yet unlocked.
+bx0, by0, bx1, by1 = 22, 56, 106, 116
+qx = np.abs(xs - (bx0 + bx1) / 2) - ((bx1 - bx0) / 2 - 12)
+qy = np.abs(ys - (by0 + by1) / 2) - ((by1 - by0) / 2 - 12)
+body = np.sqrt(np.maximum(qx, 0) ** 2 + np.maximum(qy, 0) ** 2) + np.minimum(np.maximum(qx, qy), 0) - 12
+shackle_r = np.sqrt((xs - 64) ** 2 + (ys - 52) ** 2)
+shackle = np.abs(shackle_r - 26) - 7
+shackle = np.where(ys > 52, np.maximum(shackle, np.minimum(np.abs(xs - 38), np.abs(xs - 90)) - 7), shackle)
+shackle = np.maximum(shackle, ys - 62)
+keyhole = np.minimum(np.sqrt((xs - 64) ** 2 + (ys - 82) ** 2) - 8, np.maximum(np.abs(xs - 64) - 4, np.abs(ys - 92) - 10))
+lock = np.maximum(np.minimum(body, shackle), -keyhole)
+save('lock', fill(lock * SS))
+
+# A trophy (cup, handles, stem and base): the leaderboards.
+bowl = np.maximum(np.sqrt((xs - 64) ** 2 + (np.maximum(ys - 46, 0)) ** 2) - 30, 22 - ys)
+handles = np.minimum(np.abs(np.sqrt((xs - 30) ** 2 + (ys - 44) ** 2) - 13) - 5, np.abs(np.sqrt((xs - 98) ** 2 + (ys - 44) ** 2) - 13) - 5)
+handles = np.maximum(handles, np.where(np.abs(xs - 64) < 30, 1e3, -1e3))
+stem = np.maximum(np.abs(xs - 64) - 7, np.abs(ys - 86) - 12)
+base = np.maximum(np.abs(xs - 64) - 26, np.abs(ys - 104) - 7) - 2
+trophy = np.minimum(np.minimum(np.minimum(bowl, handles), stem), base)
+save('trophy', fill(trophy * SS))

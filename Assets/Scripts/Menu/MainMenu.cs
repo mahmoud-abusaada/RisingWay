@@ -67,6 +67,7 @@ public class MainMenu : MonoBehaviour
     void Start()
     {
         GetData();
+        Leaderboards.SignIn(); // quiet; nothing until the boards are set up
     }
 
     public void GetData()
@@ -197,6 +198,11 @@ public class MainMenu : MonoBehaviour
 
     public void StartGame()
     {
+        // A swipe on the mode picker ends where a tap would: that is not a tap to play. Nor is
+        // one on a mode still locked (the picker nudges its lock).
+        ModePicker picker = skin != null ? skin.Picker : null;
+        if (picker != null && (picker.ConsumeSwipe() || !picker.CanPlay()))
+            return;
         if (!MultiClickHandler.Instance.CanClick()) return;
 
         menusOperations.StartGame();

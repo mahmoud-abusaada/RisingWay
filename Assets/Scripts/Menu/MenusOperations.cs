@@ -58,6 +58,7 @@ public class MenusOperations : MonoBehaviour
             return;
 
         Utility.startClicked = true;
+        GameMode.BeginRun(); // the run plays the mode chosen now, whatever happens in the menus
         menusController.hideStackMenus();
         menusController.showAndAddMenuToStack(Menus.InGameUI);
         if (!PlayerStats.Instance.isStayInSpaceOn())
@@ -68,9 +69,14 @@ public class MenusOperations : MonoBehaviour
         cameraController.resetFov();
         scoreManager.initScoreManager();
         pickUpsManager.initPickupsManager();
+        // Insane opens its harder turn patterns from the first part.
+        if (!playerStats.isTutorialsOn())
+            pathMaker.unlockPatternsUpTo(GameMode.T.startPatternTier);
         playerMovement.movePlayerToPosition();
         SoundManager.Instance.removeFilter();
-        FindObjectOfType<PlayerFall>().numberOfRevives = 0;
+        PlayerFall playerFall = FindObjectOfType<PlayerFall>();
+        playerFall.numberOfRevives = 0;
+        playerFall.runStarted();
         AdmobManager.Instance.LoadReviveAd();
     }
 }

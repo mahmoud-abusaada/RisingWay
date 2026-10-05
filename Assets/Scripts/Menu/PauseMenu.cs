@@ -72,6 +72,18 @@ public class PauseMenu : MonoBehaviour
         menusOperations.StartGame();
     }
 
+    // Chill: the run ends here, not by a fall - the summary (GameOverMenu) as at the end of any run.
+    private void endChillRun()
+    {
+        Utility.isGamePaused = false;
+        Time.timeScale = timeScaleBeforePause;
+        SoundManager.Instance.ResumeSounds();
+        PlayerMovement.ClearWaitingForTap();
+        pathMaker.startDestroyingOldPath();
+        pickUpsManager.clearSpawnedPickups();
+        playerFall.endGame(false);
+    }
+
     public void HomeMenu()
     {
         if (!MultiClickHandler.Instance.CanClick()) return;
@@ -79,6 +91,18 @@ public class PauseMenu : MonoBehaviour
         if (isHomeClicked || isResumeClicked || isRestartClicked)
             return;
         isHomeClicked = true;
+        if (GameMode.T.unlimitedRevives)
+        {
+            confirmationDialog.setConfirmationDialog("End run", "End this run and see how far you climbed?", true, () =>
+            {
+                if (!MultiClickHandler.Instance.CanClick()) return;
+                endChillRun();
+            }, () =>
+            {
+                isHomeClicked = false;
+            });
+            return;
+        }
         confirmationDialog.setConfirmationDialog("Confirmation", "Are you sure you want to exit?", true, () =>
         {
             if (!MultiClickHandler.Instance.CanClick()) return;

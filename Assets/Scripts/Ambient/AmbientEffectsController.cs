@@ -35,6 +35,12 @@ public class AmbientEffectsController : MonoBehaviour
     private const float SPACE_FADE_PER_SECOND = 0.6f;
     private float targetSpace = 1f;
 
+    // The sky by mode (docs/game-modes-plan.md, section 3). Standard and Insane: the climb above,
+    // day into deep space by height (A). Chill: a slow day-to-night-and-back cycle on the clock,
+    // whatever the height (B) - this long for one whole turn, starting in the day.
+    private const float CHILL_CYCLE_SECONDS = 240f;
+    private float chillClock;
+
     void Awake()
     {
         GetComponent<SolarSystem>().initSolarSystem();
@@ -78,6 +84,7 @@ public class AmbientEffectsController : MonoBehaviour
 
     public void onGameStarted()
     {
+        chillClock = 0f;
         if (!PlayerStats.Instance.isStayInSpaceOn())
         {
             targetSpace = 0f;
@@ -162,7 +169,9 @@ public class AmbientEffectsController : MonoBehaviour
         cloudsContainer.Rotate(new Vector3(0f, Time.unscaledDeltaTime / 2, 0f));
         if (Utility.gameStarted)
         {
-            if (!PlayerStats.Instance.isStayInSpaceOn())
+            if (!PlayerStats.Instance.isStayInSpaceOn() && GameMode.Current == RunMode.Chill)
+                chillSky();
+            else if (!PlayerStats.Instance.isStayInSpaceOn())
             {
                 targetSpace = Mathf.InverseLerp(FIRST_STARS_HEIGHT, DEEP_SPACE_HEIGHT, currentCameraHeight);
 
@@ -186,6 +195,21 @@ public class AmbientEffectsController : MonoBehaviour
 
         if (spaceSky != null)
             spaceSky.visibility = Mathf.MoveTowards(spaceSky.visibility, targetSpace, SPACE_FADE_PER_SECOND * Time.unscaledDeltaTime);
+    }
+
+    /// <summary>
+    /// Chill's sky: night comes and goes on the clock, not with the climb. Real time, so a bolt's
+    /// faster game time does not rush it, and it stands still while the game is paused.
+    /// </summary>
+    private void chillSky()
+    {
+        if (!Utility.isGamePaused)
+            chillClock += Time.unscaledDeltaTime;
+        float night = 0.5f - 0.5f * Mathf.Cos(chillClock / CHILL_CYCLE_SECONDS * 2f * Mathf.PI); // 0 day .. 1 night
+        Camera.main.backgroundColor = night < 0.5f
+            ? Color.Lerp(daySkyColor, midSkyColor, night * 2f)
+            : Color.Lerp(midSkyColor, nightSkyColor, night * 2f - 1f);
+        targetSpace = Mathf.InverseLerp(0.3f, 0.95f, night);
     }
 
     void FixedUpdate()

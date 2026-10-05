@@ -189,6 +189,9 @@ public static class SaveSystem
         if (d.chances < 0) { d.chances = 0; changed = true; }
         if (d.mysteryBoxes < 0) { d.mysteryBoxes = 0; changed = true; }
         if (d.highScore < 0) { d.highScore = 0; changed = true; }
+        if (d.insaneHighScore < 0) { d.insaneHighScore = 0; changed = true; }
+        if (d.chillLongestStreak < 0) { d.chillLongestStreak = 0; changed = true; }
+        if (string.IsNullOrEmpty(d.runMode)) { d.runMode = "Standard"; changed = true; }
         if (d.timesPlayed < 0) { d.timesPlayed = 0; changed = true; }
 
         if (d.doublePointsLevel < 1) { d.doublePointsLevel = 1; changed = true; }

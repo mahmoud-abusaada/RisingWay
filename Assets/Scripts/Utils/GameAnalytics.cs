@@ -81,9 +81,22 @@ public static class GameAnalytics
         Log("run_start",
             P("run_number", timesPlayed),
             P("tutorial", tutorial ? 1 : 0),
-            P("control_mode", controlMode));
+            P("control_mode", controlMode),
+            P("game_mode", GameMode.Current.ToString()));
         if (timesPlayed == 1)
             Log("first_run_start", P("control_mode", controlMode));
+    }
+
+    /// <summary>A one-time mode suggestion shown at game over ("insane" unlocked, "chill").</summary>
+    public static void ModeSuggested(string mode)
+    {
+        Log("mode_suggested", P("game_mode", mode));
+    }
+
+    /// <summary>The player took the suggestion and started that mode.</summary>
+    public static void ModeSuggestionTaken(string mode)
+    {
+        Log("mode_suggestion_taken", P("game_mode", mode));
     }
 
     /// <summary>The run is over (game over shown). Duration is wall-clock, pauses included.</summary>
@@ -100,6 +113,7 @@ public static class GameAnalytics
             P("new_best", score > highScoreBefore ? 1 : 0),
             P("pattern_tier", patternTier),
             P("tutorial", runIsTutorial ? 1 : 0),
+            P("game_mode", GameMode.Current.ToString()),
         };
         Log("run_end", ps);
         // The first runs get their own events so the funnel is one glance: how did run 1, 2, 3 go.

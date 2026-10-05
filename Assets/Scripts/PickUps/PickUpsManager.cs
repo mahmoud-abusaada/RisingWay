@@ -21,6 +21,11 @@ public class PickUpsManager : MonoBehaviour
     // the longest distance takes about 15 s of game time.
     private const float BOLT_OVERDUE_SECONDS = 35f;
     private float boltStartedAt;
+    private int boltFromPart; // PathMaker.PartsSpawned when the bolt came on
+    private float boltShown = 1f; // the ring's value, eased so it does not jump part by part
+    // Parts already down ahead of the ball: the straight that ends a bolt is that many parts away
+    // when it goes down. Measured at the end of each bolt; this is the first guess.
+    private static int partsAhead = 7;
     private float doublePointsFrom, doublePointsUntil; // real time, as the coroutine waits
 
     // Start is called before the first frame update
@@ -92,13 +97,17 @@ public class PickUpsManager : MonoBehaviour
 
         // PlayerStats.Instance.setAutoPilotState(true);
         if (!Utility.boltIsOn)
+        {
             boltStartedAt = Time.time;
+            boltFromPart = pathMaker.PartsSpawned;
+            boltShown = 1f;
+        }
         Utility.boltIsOn = true;
         playerMovement.boltStarted();
         // playerMovement.setBoltTrail();
         playerMovement.speed += 2;
-        if (playerMovement.speed > Utility.Constants.TOP_PLAYER_SPEED)
-            playerMovement.speed = Utility.Constants.TOP_PLAYER_SPEED;
+        if (playerMovement.speed > GameMode.T.topSpeed)
+            playerMovement.speed = GameMode.T.topSpeed; // the mode's own top speed
         inGameUI.addPickedPickUp(PickUpType.Bolt);
         inGameUI.showHintOnce("bolt", "Bolt! Full speed,\nand the ball turns by itself");
         StartCoroutine(delayTimeScale());
@@ -154,6 +163,12 @@ public class PickUpsManager : MonoBehaviour
 
     public void boltIsOver(bool withSound = true)
     {
+        if (Utility.boltIsOn && pathMaker.BoltEndSpawnedAt >= 0)
+        {
+            int ahead = pathMaker.PartsSpawned - pathMaker.BoltEndSpawnedAt;
+            if (ahead > 0 && ahead < 30)
+                partsAhead = ahead;
+        }
         Utility.boltIsOn = false;
         pathMaker.boltIsOver();
         myTimeScale = Utility.Constants.DEFAULT_TIME_SCALE;
@@ -230,6 +245,25 @@ public class PickUpsManager : MonoBehaviour
         if (!Utility.doublePointIsOn || doublePointsUntil <= doublePointsFrom)
             return 0f;
         return Mathf.Clamp01((doublePointsUntil - Time.realtimeSinceStartup) / (doublePointsUntil - doublePointsFrom));
+    }
+
+    /// <summary>
+    /// How much of the bolt is left, 1 to 0 (the power-up button's ring, as for double points).
+    /// A bolt runs by distance: the ball passes one part for each part put down, and it ends on
+    /// the straight laid after its distance, the parts already ahead later. Until that straight
+    /// is down its place is taken as the distance itself (it waits for the next climb, a part or two).
+    /// </summary>
+    public float boltLeft()
+    {
+        if (!Utility.boltIsOn)
+            return 0f;
+        int passed = pathMaker.PartsSpawned - boltFromPart;
+        int endAt = pathMaker.BoltEndSpawnedAt >= 0
+            ? pathMaker.BoltEndSpawnedAt - boltFromPart
+            : Mathf.Max(Mathf.CeilToInt(Utility.getBoltDistance()) + 1, passed + 1);
+        float target = 1f - Mathf.Clamp01((float)passed / Mathf.Max(1, endAt + partsAhead));
+        boltShown = Mathf.Lerp(boltShown, target, 1f - Mathf.Exp(-4f * Time.unscaledDeltaTime));
+        return boltShown;
     }
 
     public void activateChance()

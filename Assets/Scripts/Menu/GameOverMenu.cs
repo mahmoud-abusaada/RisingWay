@@ -127,7 +127,19 @@ public class GameOverMenu : MonoBehaviour
         scoreText.text = playerScore.ToString();
         scoreText.GetComponent<Animation>().Play();
 
-        if (playerScore > playerStats.getHighScore())
+        if (!GameMode.T.hasBestScore)
+        {
+            // Chill: no best score - the longest climb without a fall, this run and ever.
+            int longest = scoreManager.getLongestStreak();
+            bool record = longest > playerStats.getChillLongestStreak();
+            if (record)
+                playerStats.setChillLongestStreak(longest);
+            highscoreText.text = record ? "New longest climb: " + longest
+                                        : "Longest climb: " + longest + "\nBest: " + playerStats.getChillLongestStreak();
+            highscoreText.gameObject.SetActive(true);
+            highscoreText.GetComponent<Animation>().Play();
+        }
+        else if (playerScore > playerStats.getHighScore())
         {
             newHighscoreText.transform.localScale = new Vector3(5, 5, 5);
             newHighscoreText.gameObject.SetActive(true);
@@ -143,6 +155,126 @@ public class GameOverMenu : MonoBehaviour
         replayButton.gameObject.SetActive(true);
         shareButton.gameObject.SetActive(true);
         GetComponent<Animation>().Play();
+
+        // The mode's board keeps the player's best by itself: every run's goes up.
+        Leaderboards.Report(GameMode.Current, GameMode.T.hasBestScore ? playerScore : scoreManager.getLongestStreak());
+        offerDoubleDiamonds();
+        suggestMode(playerScore);
+    }
+
+    // ---- Chill: double the run's diamonds for an ad ------------------------------------------
+    private Button doubleButton;
+    private TextMeshProUGUI doubleText;
+
+    private void offerDoubleDiamonds()
+    {
+        int diamonds = scoreManager.getDiamondsCollected();
+        bool offer = GameMode.T.unlimitedRevives && diamonds > 0 && adsManager != null && adsManager.CanShowReviveAd();
+        if (!offer)
+        {
+            if (doubleButton != null)
+                doubleButton.gameObject.SetActive(false);
+            return;
+        }
+        if (doubleButton == null)
+            buildDoubleButton();
+        doubleText.text = "DOUBLE DIAMONDS  +" + Utility.getFormatedNumber(diamonds);
+        doubleButton.interactable = true;
+        doubleButton.gameObject.SetActive(true);
+    }
+
+    private void buildDoubleButton()
+    {
+        RectTransform replay = (RectTransform)replayButton.transform;
+        Image back = UiKit.Image(replay.parent, "DoubleDiamonds", "round_sheen", UiKit.WithAlpha(UiKit.Glass, 0.85f));
+        back.pixelsPerUnitMultiplier = 1.6f;
+        RectTransform r = back.rectTransform;
+        r.anchorMin = replay.anchorMin;
+        r.anchorMax = replay.anchorMax;
+        r.pivot = new Vector2(0.5f, 0.5f);
+        r.sizeDelta = new Vector2(620, 104);
+        r.anchoredPosition = replay.anchoredPosition + new Vector2(0, replay.sizeDelta.y * 0.5f + 92f);
+        Image edge = UiKit.Image(back.transform, "Edge", "round_outline", UiKit.WithAlpha(Color.white, 0.7f));
+        edge.pixelsPerUnitMultiplier = back.pixelsPerUnitMultiplier;
+        UiKit.Gradient(edge, UiKit.Hex("E58CFF"), UiKit.Hex("8A3CFF"), false);
+        UiKit.Stretch(edge.rectTransform);
+        Image gem = UiKit.Image(back.transform, "Gem", "gem", Color.white);
+        UiKit.Gradient(gem, UiKit.Hex("E58CFF"), UiKit.Hex("8A3CFF"), true);
+        UiKit.Place(gem.rectTransform, new Vector2(0f, 0.5f), new Vector2(56, 0), new Vector2(54, 54));
+        doubleText = UiKit.Label(scoreText, back.transform, "Text", "", 34, UiKit.Text, TextAlignmentOptions.Center);
+        doubleText.enableAutoSizing = true;
+        doubleText.fontSizeMin = 20;
+        doubleText.fontSizeMax = 34;
+        doubleText.rectTransform.anchorMin = Vector2.zero;
+        doubleText.rectTransform.anchorMax = Vector2.one;
+        doubleText.rectTransform.offsetMin = new Vector2(96, 0);
+        doubleText.rectTransform.offsetMax = new Vector2(-28, 0);
+        doubleButton = back.gameObject.AddComponent<Button>();
+        doubleButton.targetGraphic = back;
+        doubleButton.onClick.AddListener(watchForDoubleDiamonds);
+        back.gameObject.AddComponent<PressDip>();
+    }
+
+    private void watchForDoubleDiamonds()
+    {
+        if (!MultiClickHandler.Instance.CanClick()) return;
+        doubleButton.interactable = false;
+        int diamonds = scoreManager.getDiamondsCollected();
+        adsManager.ShowDoubleDiamondsAd(() =>
+        {
+            for (int i = 0; i < diamonds; i++)
+                playerStats.addDiamonds();
+            playerStats.Flush();
+            doubleText.text = "DIAMONDS DOUBLED!  +" + Utility.getFormatedNumber(diamonds);
+            SoundManager.Instance.PlayDiamond();
+        }, () =>
+        {
+            doubleButton.interactable = true; // no ad after all, or closed early: still on offer
+        });
+    }
+
+    // ---- One-time suggestions (docs/game-modes-plan.md) --------------------------------------
+    // Insane, the first time Standard's best opens it: a celebration. Chill, after a few short
+    // Standard runs in a row: an invitation, never a judgement. Each shown once.
+    private const int SHORT_RUN = 20;
+    private const int SHORT_RUNS_FOR_CHILL = 3;
+
+    private void suggestMode(int score)
+    {
+        if (GameMode.Current != RunMode.Standard || playerStats.isTutorialsOn())
+            return;
+        ConfirmationDialog dialog = FindAnyObjectByType<ConfirmationDialog>(FindObjectsInactive.Include);
+
+        if (!playerStats.wasInsaneUnlockShown() && playerStats.getHighScore(RunMode.Standard) >= GameMode.INSANE_UNLOCK_SCORE)
+        {
+            playerStats.markInsaneUnlockShown();
+            GameAnalytics.ModeSuggested("insane");
+            if (dialog != null)
+                dialog.setConfirmationDialog("Insane unlocked!",
+                    "You reached " + GameMode.INSANE_UNLOCK_SCORE + ". Insane is open: faster, harder turns, no help. Pure reflex.\nPlay it now?",
+                    true, () => playMode(RunMode.Insane));
+            return;
+        }
+
+        int shortRuns = score < SHORT_RUN ? playerStats.getShortRunsInARow() + 1 : 0;
+        playerStats.setShortRunsInARow(shortRuns);
+        if (shortRuns >= SHORT_RUNS_FOR_CHILL && !playerStats.wasChillSuggested())
+        {
+            playerStats.markChillSuggested();
+            GameAnalytics.ModeSuggested("chill");
+            if (dialog != null)
+                dialog.setConfirmationDialog("Want a relaxed run?",
+                    "Try Chill: slower, no pressure, and unlimited revives.\nYou can switch any time on the main menu.",
+                    true, () => playMode(RunMode.Chill));
+        }
+    }
+
+    private void playMode(RunMode mode)
+    {
+        playerStats.setRunMode(mode);
+        GameAnalytics.ModeSuggestionTaken(mode.ToString());
+        menusOperations.resetGame(false);
+        menusOperations.StartGame();
     }
 
     public void RestartGame()
@@ -161,6 +293,8 @@ public class GameOverMenu : MonoBehaviour
         newHighscoreText.gameObject.SetActive(false);
         replayButton.gameObject.SetActive(false);
         shareButton.gameObject.SetActive(false);
+        if (doubleButton != null)
+            doubleButton.gameObject.SetActive(false);
     }
 
     public void Share()

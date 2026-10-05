@@ -50,6 +50,11 @@ public class PlayerFall : MonoBehaviour
             transform.GetComponent<Rigidbody>().useGravity = false;
             transform.GetComponent<Rigidbody>().isKinematic = true;
             transform.localRotation = Quaternion.Euler(0, 0, 15);
+            if (GameMode.T.unlimitedRevives)
+            {
+                chillRevive();
+                return;
+            }
             if (Utility.chanceIsOn && !Utility.spawningAfterChance)
             {
                 GameAnalytics.Revived("chance");
@@ -71,6 +76,41 @@ public class PlayerFall : MonoBehaviour
     public void resetFall()
     {
         checkForHeightDelta = false;
+        PlayerMovement.ClearWaitingForTap();
+        runStartedAt = Time.unscaledTime;
+        lastChillAdAt = -1f;
+    }
+
+    // ---- Chill: every fall is revived (GameMode.unlimitedRevives) ------------------------------
+    // Now and then an interstitial, at the fall - before "tap to continue" shows, so no tap meant
+    // for the game lands on the ad: never in a run's first CHILL_AD_AFTER seconds, and no more
+    // than one in CHILL_AD_EVERY.
+    private const float CHILL_AD_AFTER = 120f;
+    private const float CHILL_AD_EVERY = 180f;
+    private float runStartedAt = 0f;
+    private float lastChillAdAt = -1f;
+
+    private void chillRevive()
+    {
+        GameAnalytics.Revived("chill");
+        float now = Time.unscaledTime;
+        bool adDue = now - runStartedAt >= CHILL_AD_AFTER && (lastChillAdAt < 0f || now - lastChillAdAt >= CHILL_AD_EVERY);
+        if (adDue && adsManager != null)
+        {
+            lastChillAdAt = now;
+            adsManager.ShowInterstitialAd(startChillRespawn, "chill_fall");
+        }
+        else
+            startChillRespawn();
+    }
+
+    private void startChillRespawn()
+    {
+        if (inGameUI == null)
+            inGameUI = FindObjectOfType<InGameUI>();
+        pathMaker.createPathParent();
+        playerMovement.respawnForChill();
+        GetComponent<PlayerLinkedObjectsController>().SetSpawningEffectLooping(true);
     }
 
     public void startRespawn()
@@ -84,8 +124,17 @@ public class PlayerFall : MonoBehaviour
             inGameUI.removePickedPickUp(PickUpType.Chance);
     }
 
+    /// <summary>A run has started (MenusOperations.StartGame): Chill's ad timing counts from here.</summary>
+    public void runStarted()
+    {
+        runStartedAt = Time.unscaledTime;
+        lastChillAdAt = -1f;
+    }
+
     private int numberOfLosesAfterAd = 0;
-    public void endGame()
+    /// <param name="mayShowAd">false when a Chill run is ended from the pause menu: its ads come
+    /// at its falls.</param>
+    public void endGame(bool mayShowAd = true)
     {
         pickUpsManager.clearActivePickups();
         Utility.resetFlags();
@@ -101,7 +150,7 @@ public class PlayerFall : MonoBehaviour
         GameAnalytics.RunEnded(score, PlayerStats.Instance.getHighScore(), scoreManager.getDiamondsCollected(), scoreManager.patternTierFor(score));
 
         numberOfLosesAfterAd++;
-        if (numberOfLosesAfterAd % Random.Range(4, 7) == 0 || numberOfLosesAfterAd > 7)
+        if (mayShowAd && (numberOfLosesAfterAd % Random.Range(4, 7) == 0 || numberOfLosesAfterAd > 7))
         {
             numberOfLosesAfterAd = 0;
             adsManager.ShowInterstitialAd(() =>
@@ -131,7 +180,9 @@ public class PlayerFall : MonoBehaviour
 
     public void playerFell()
     {
-        if (!Utility.chanceIsOn && !shouldShowRevive())
+        if (GameMode.T.unlimitedRevives)
+            scoreManager.fell(); // Chill: the climb without a fall starts over; the run goes on
+        else if (!Utility.chanceIsOn && !shouldShowRevive())
         {
             endGame();
         }

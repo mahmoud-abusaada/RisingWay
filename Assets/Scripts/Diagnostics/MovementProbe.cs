@@ -11,7 +11,7 @@
 //   -probeOneTap    taps instead of auto-pilot; with -probeTapSpread D (taps up to D either side of
 //                   a turn part's centre), -probeManual (left/right controls), -probeBoltButton P
 //   -probeEarly F   (with -probeOneTap) this share of the taps comes before the turn part, within
-//                   the early-tap grace (PlayerMovement.EARLY_TAP_SECONDS); the ball must still turn
+//                   the early-tap grace (PlayerMovement.EarlyTapSeconds, by mode); the ball must still turn
 //   -probeTutorial  (with -probeOneTap) the run starts with the tutorial on, played by a beginner:
 //                   taps too early, misses a turn altogether, then gets it (see TutorialStep)
 //   -probeSpeed S / -probeSeed N / -probePatterns R-R,L-L / -probeHug D: see each option below
@@ -49,6 +49,9 @@ public class MovementProbe : MonoBehaviour
     private Rigidbody body;
     private bool running;
     private bool originalAutoPilot;
+    // -probeMode Chill|Standard|Insane: the run plays that mode (restored after).
+    private RunMode originalMode;
+    private float waitingSince = -1f;
 
     private Directions lastDirection;
     private bool haveSegment;
@@ -114,8 +117,6 @@ public class MovementProbe : MonoBehaviour
     // edge, 1 at the grace's limit), or -1 for a tap on the part.
     private float earlyShare, nextEarly = -1f;
     private int earlyTaps;
-    private static readonly FieldInfo EarlySecondsField =
-        typeof(PlayerMovement).GetField("EARLY_TAP_SECONDS", BindingFlags.NonPublic | BindingFlags.Static);
     private int secondTapIn;
 
     // -probeBoltRejoin: every few turns, turn the ball off the path as a player reaching for a bolt
@@ -281,6 +282,23 @@ public class MovementProbe : MonoBehaviour
     {
         if (reviveUnderway)
         {
+            // Chill's revive waits in the air for a tap: give it one a second after it starts waiting.
+            if (PlayerMovement.WaitingForTap)
+            {
+                if (waitingSince < 0f)
+                {
+                    waitingSince = Time.unscaledTime;
+                    Debug.Log(TAG + "REVIVE: Chill - the ball is waiting for a tap " + (Time.time - knockedOffAt).ToString("F2") + "s after the fall");
+                }
+                else if (Time.unscaledTime - waitingSince > 1f)
+                {
+                    waitingSince = -1f;
+                    Debug.Log(TAG + "REVIVE: Chill - tapping to continue");
+                    player.continueAfterChillRevive();
+                }
+                reviveFallSeen = true;
+                return true;
+            }
             if (!Utility.camFollowPlayer || Utility.spawningAfterChance)
             {
                 reviveFallSeen = true;
@@ -327,7 +345,8 @@ public class MovementProbe : MonoBehaviour
             : turnErrors.Count >= 3 && haveSegment && new Vector2(q.x - turnPoint.x, q.z - turnPoint.z).magnitude >= 4.5f;
         if (knock)
         {
-            Utility.chanceIsOn = true;
+            if (!GameMode.T.unlimitedRevives)
+                Utility.chanceIsOn = true; // (Chill revives every fall by itself)
             Vector3 f = Forward(player.direction);
             body.position += new Vector3(f.z, 0, -f.x) * 6f + Vector3.down * 2f; // well clear of any track
             knockedOffAt = Time.time;
@@ -522,7 +541,7 @@ public class MovementProbe : MonoBehaviour
         float tapWhen = tapAt;
         if (nextEarly >= 0f)
         {
-            float seconds = EarlySecondsField != null ? (float)EarlySecondsField.GetValue(null) : 0f;
+            float seconds = PlayerMovement.EarlyTapSeconds;
             float reach = Mathf.Min(player.speed * Time.timeScale * seconds, 2.4f); // EARLY_TAP_MAX_DISTANCE
             // Inside the grace by a step at its far end: the tap lands up to a step after this.
             tapWhen = 1.25f + 0.02f + nextEarly * Mathf.Max(0f, reach - 0.04f);
@@ -550,7 +569,7 @@ public class MovementProbe : MonoBehaviour
         taps++;
         // Before the part, or on its first 0.3 (EARLY_TAP_INSET): the game keeps the tap and turns
         // the ball 0.3 into the part.
-        bool early = EarlySecondsField != null && (float)EarlySecondsField.GetValue(null) > 0f && ahead > 0.95f;
+        bool early = PlayerMovement.EarlyTapSeconds > 0f && ahead > 0.95f;
         nextEarly = UnityEngine.Random.value < earlyShare ? UnityEngine.Random.value : -1f;
         if (early)
         {
@@ -643,6 +662,12 @@ public class MovementProbe : MonoBehaviour
         tutorialTest = Arg("-probeTutorial") != null;
         if (tutorialTest)
             PlayerStats.Instance.setTutorialsState(true);
+        originalMode = PlayerStats.Instance.getRunMode();
+        if (System.Enum.TryParse(Arg("-probeMode") ?? "", out RunMode probeMode))
+        {
+            PlayerStats.Instance.setRunMode(probeMode);
+            GameMode.IgnoreLocks = true; // a test save may not have Insane open
+        }
         originalAutoPilot = PlayerStats.Instance.isAutoPilotOn();
         PlayerStats.Instance.setAutoPilotState(!oneTap);
 
@@ -679,6 +704,10 @@ public class MovementProbe : MonoBehaviour
 
         while (!Utility.gameStarted)
             yield return null;
+        GameMode.Tuning mt = GameMode.T;
+        Debug.Log(TAG + "mode " + GameMode.Current + ": speed " + mt.startSpeed + " to " + mt.topSpeed + " over " + mt.rampScore +
+                  ", early tap " + PlayerMovement.EarlyTapSeconds + "s, patterns " + mt.startPatternTier + ".." + mt.maxPatternTier +
+                  ", unlimited revives " + mt.unlimitedRevives);
 
         pickUps = FindAnyObjectByType<PickUpsManager>();
 
@@ -705,7 +734,7 @@ public class MovementProbe : MonoBehaviour
         if (fast)
         {
             // Held every step: picking up a real bolt and losing it would otherwise reset both.
-            player.speed = Utility.Constants.TOP_PLAYER_SPEED;
+            player.speed = GameMode.T.topSpeed; // the mode's own top speed
             TimeScaleField.SetValue(pickUps, 3.5f);
         }
 
@@ -1103,6 +1132,7 @@ public class MovementProbe : MonoBehaviour
         Destroy(tap);
 
         PlayerStats.Instance.setAutoPilotState(originalAutoPilot);
+        PlayerStats.Instance.setRunMode(originalMode);
         PlayerPrefs.Save();
 
 #if UNITY_EDITOR
